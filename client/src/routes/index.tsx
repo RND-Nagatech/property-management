@@ -1,9 +1,6 @@
+import * as React from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 
-// ...all imports and component code remain unchanged...
-
-export const Route = createFileRoute("/")({
-  component: Index,
-});
 import heroImg from "@/assets/hero-villa.jpg";
 import {
   Search,
@@ -20,9 +17,15 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { TopBar, MobileNav } from "@/components/customer/Nav";
-import { rooms, formatRupiah } from "@/lib/data";
+import { formatRupiah } from "@/lib/currency";
 import { formatDateId, formatDateRangeId } from "@/lib/dates";
 import { useClickOutside } from "@/hooks/use-click-outside";
+import { useRoomTypes } from "@/hooks/useRoomTypes";
+import type { RoomType } from "@/services/types";
+
+export const Route = createFileRoute("/")({
+  component: Index,
+});
 
 function Index() {
   // State untuk form pencarian
@@ -41,6 +44,8 @@ function Index() {
   const guestRef = React.useRef<HTMLDivElement | null>(null);
   useClickOutside([dateRef], () => setShowDatePicker(false), showDatePicker);
   useClickOutside([guestRef], () => setShowGuestPopover(false), showGuestPopover);
+
+  const roomTypes = useRoomTypes(false);
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
@@ -213,7 +218,7 @@ function Index() {
               <Link
                 to="/kamar"
                 className="col-span-2 inline-flex items-center justify-center gap-2 rounded-2xl bg-accent px-6 py-4 text-sm font-semibold text-accent-foreground shadow-[var(--shadow-soft)] hover:opacity-95 md:col-span-1"
-                state={{ checkin, checkout, adults, children, roomsCount }}
+                state={{ checkin, checkout, adults, children, roomsCount } as any}
               >
                 <Search className="h-4 w-4" /> Cari Kamar
               </Link>
@@ -267,25 +272,47 @@ function Index() {
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl font-bold md:text-3xl">Rekomendasi Tipe Kamar</h2>
-                          {/* Promo (disembunyikan sementara) */}
-                          {/*
-                          <section className="mx-auto max-w-6xl px-4 pt-16">
-                            <div className="grid gap-4 md:grid-cols-3">
-                              {[
-                                { tag: "FLASH SALE", title: "Diskon hingga 35%", desc: "Untuk booking 3 malam atau lebih.", color: "bg-accent" },
-                                { tag: "EARLY BIRD", title: "Hemat 20%", desc: "Pesan 30 hari sebelum check-in.", color: "bg-primary" },
-                                { tag: "WEEKEND", title: "Free Sarapan", desc: "Setiap akhir pekan untuk 2 orang.", color: "bg-warning" },
-                              ].map((p) => (
-                                <div key={p.title} className="group relative overflow-hidden rounded-2xl bg-card p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-soft)] transition">
-                                  <span className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider ${p.color === "bg-warning" ? "text-primary" : "text-white"} ${p.color}`}>{p.tag}</span>
-                                  <h3 className="mt-3 text-xl font-bold">{p.title}</h3>
-                                  <p className="mt-1 text-sm text-muted-foreground">{p.desc}</p>
-                                  <ArrowRight className="absolute right-5 bottom-5 h-5 w-5 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-accent" />
-                                </div>
-                              ))}
-                            </div>
-                          </section>
-                          */}
+            <p className="mt-1 text-sm text-muted-foreground">
+              Pilihan terbaik untuk liburan Anda
+            </p>
+          </div>
+          <Link
+            to="/kamar"
+            className="hidden md:inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium"
+          >
+            Lihat semua <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="mt-6 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {roomTypes.isLoading && (
+            <div className="rounded-2xl bg-card p-6 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+              Memuat rekomendasi...
+            </div>
+          )}
+          {roomTypes.isError && (
+            <div className="rounded-2xl bg-card p-6 text-sm text-destructive shadow-[var(--shadow-card)]">
+              {roomTypes.error instanceof Error
+                ? roomTypes.error.message
+                : "Gagal memuat rekomendasi tipe kamar"}
+            </div>
+          )}
+          {!roomTypes.isLoading &&
+            !roomTypes.isError &&
+            (roomTypes.data?.length ?? 0) === 0 && (
+              <div className="rounded-2xl bg-card p-6 text-sm text-muted-foreground shadow-[var(--shadow-card)]">
+                Belum ada tipe kamar tersedia.
+              </div>
+            )}
+          {(roomTypes.data ?? [])
+            .filter((rt) => rt.isActive !== false)
+            .slice(0, 3)
+            .map((roomType) => (
+              <RoomCard key={roomType._id} roomType={roomType} />
+            ))}
+        </div>
+      </section>
+
       <section className="mx-auto max-w-6xl px-4 pt-20">
         <h2 className="text-2xl font-bold md:text-3xl">Fasilitas Properti</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -400,35 +427,41 @@ function Field({
   );
 }
 
-function RoomCard({ room }: { room: (typeof rooms)[0] }) {
+function RoomCard({ roomType }: { roomType: RoomType }) {
   return (
     <Link
       to="/kamar/$id"
-      params={{ id: room.id }}
+      params={{ id: roomType.slug }}
       className="group block overflow-hidden rounded-2xl bg-card shadow-[var(--shadow-card)] transition hover:shadow-[var(--shadow-soft)]"
     >
       <div className="relative aspect-[4/3] overflow-hidden">
-        <img
-          src={room.image}
-          alt={room.name}
-          loading="lazy"
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-        />
-        {room.breakfast && (
+        {roomType.gambarThumbnail ? (
+          <img
+            src={roomType.gambarThumbnail}
+            alt={roomType.namaTipe}
+            loading="lazy"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-secondary text-sm text-muted-foreground">
+            Tidak ada gambar
+          </div>
+        )}
+        {roomType.includeSarapan && (
           <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-primary">
             Termasuk Sarapan
           </span>
         )}
         <span className="absolute right-3 top-3 rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-accent-foreground">
-          Tersedia
+          {roomType.kamarTersedia ?? 0} tersedia
         </span>
       </div>
       <div className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-bold leading-tight">{room.name}</h3>
+            <h3 className="text-lg font-bold leading-tight">{roomType.namaTipe}</h3>
             <p className="mt-1 text-xs text-muted-foreground">
-              {room.capacity} tamu · {room.size}m² · {room.bed}
+              {roomType.kapasitas} tamu · {roomType.ukuranKamar}m² · {roomType.tipeKasur}
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-lg bg-accent/10 px-2 py-1 text-xs font-semibold text-accent">
@@ -437,7 +470,9 @@ function RoomCard({ room }: { room: (typeof rooms)[0] }) {
         </div>
         <div className="mt-4 flex items-end justify-between">
           <div>
-            <div className="text-lg font-bold text-foreground">{formatRupiah(room.price)}</div>
+            <div className="text-lg font-bold text-foreground">
+              {formatRupiah(roomType.hargaDefault)}
+            </div>
             <div className="text-xs text-muted-foreground">per malam</div>
           </div>
           <span className="rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground">

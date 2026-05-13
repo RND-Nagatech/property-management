@@ -57,7 +57,8 @@ function KamarPage() {
 
   function openEdit(r: Room) {
     setEditing(r);
-    const rtId = typeof r.roomTypeId === "string" ? r.roomTypeId : r.roomTypeId._id;
+    const rtId =
+      typeof r.roomTypeId === "string" ? r.roomTypeId : (r.roomTypeId as any)?._id ?? "";
     setForm({
       nomorKamar: r.nomorKamar,
       roomTypeId: rtId,
@@ -140,8 +141,8 @@ function KamarPage() {
           </div>
         )}
         {(rooms.data ?? []).map((k) => {
-          const rt = k.roomTypeId as string | RoomType;
-          const tipeLabel = typeof rt === "string" ? rt : rt.namaTipe;
+          const rt = k.roomTypeId as unknown as string | RoomType | null | undefined;
+          const tipeLabel = typeof rt === "string" ? rt : rt?.namaTipe ?? "-";
           return (
             <div key={k._id} className="group rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
               <div className="flex items-start justify-between">

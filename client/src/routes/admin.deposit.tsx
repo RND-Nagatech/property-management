@@ -64,8 +64,8 @@ function Deposit() {
             {list.map((d) => (
               <tr key={d._id}>
                 <td className="py-3.5 font-mono text-xs font-bold">{d._id.slice(-6)}</td>
-                <td className="py-3.5 font-medium">{d.tamuId?.nama ?? "-"}</td>
-                <td className="py-3.5 text-muted-foreground">{d.bookingId?.kodeBooking ?? "-"}</td>
+                <td className="py-3.5 font-medium">{(d.tamuId as any)?.nama ?? "-"}</td>
+                <td className="py-3.5 text-muted-foreground">{(d.bookingId as any)?.kodeBooking ?? "-"}</td>
                 <td className="py-3.5 font-semibold">{formatRupiah(d.jumlah)}</td>
                 <td className="py-3.5">
                   <span

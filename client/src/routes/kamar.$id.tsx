@@ -1,11 +1,12 @@
 import React from "react";
-import { createFileRoute, Link, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { TopBar } from "@/components/customer/Nav";
 import { formatRupiah } from "@/lib/currency";
 import { formatDateId } from "@/lib/dates";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { pickBookingSearchState } from "@/lib/booking-search-state";
 import { useRoomType } from "@/hooks/useRoomTypes";
+import { isLoggedIn } from "@/services/auth";
 import {
   Users,
   Maximize,
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/kamar/$id")({
 });
 
 function RoomDetail() {
+  const navigate = useNavigate();
   const params = Route.useParams();
   const roomType = useRoomType(params.id);
   const locationState = useRouterState({ select: (s) => s.location.state });
@@ -326,7 +328,18 @@ function RoomDetail() {
               </div>
               <button
                 type="button"
-                onClick={() => alert("Fitur booking belum diintegrasikan pada tahap ini.")}
+                onClick={() => {
+                  const next = `/booking/${room.slug}`;
+                  if (!isLoggedIn()) {
+                    navigate({ to: "/login", search: { redirectTo: next } as any });
+                    return;
+                  }
+                  navigate({
+                    to: "/booking/$id",
+                    params: { id: room.slug },
+                    state: { checkin, checkout, adults, children, roomsCount } as any,
+                  });
+                }}
                 className="mt-5 block w-full rounded-xl bg-accent py-3.5 text-center text-sm font-semibold text-accent-foreground hover:opacity-90"
               >
                 Booking Sekarang
@@ -348,7 +361,18 @@ function RoomDetail() {
           </div>
           <button
             type="button"
-            onClick={() => alert("Fitur booking belum diintegrasikan pada tahap ini.")}
+            onClick={() => {
+              const next = `/booking/${room.slug}`;
+              if (!isLoggedIn()) {
+                navigate({ to: "/login", search: { redirectTo: next } as any });
+                return;
+              }
+              navigate({
+                to: "/booking/$id",
+                params: { id: room.slug },
+                state: { checkin, checkout, adults, children, roomsCount } as any,
+              });
+            }}
             className="flex-1 rounded-xl bg-accent py-3.5 text-center text-sm font-semibold text-accent-foreground"
           >
             Booking Sekarang

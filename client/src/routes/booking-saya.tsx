@@ -1,58 +1,66 @@
 import React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { TopBar, MobileNav } from "@/components/customer/Nav";
 import { formatRupiah } from "@/lib/currency";
-import { useGuests } from "@/hooks/useGuests";
-import { useBookings, type BookingStatus } from "@/hooks/useBookings";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/services/api";
 import { Calendar, QrCode, FileText, ChevronRight } from "lucide-react";
+import { isLoggedIn } from "@/services/auth";
 
 export const Route = createFileRoute("/booking-saya")({
   head: () => ({ meta: [{ title: "Booking Saya — Stayly" }] }),
   component: MyBookings,
 });
 
-const statusStyle: Record<BookingStatus, string> = {
-  Menunggu: "bg-warning/15 text-warning",
-  Dikonfirmasi: "bg-blue-100 text-blue-700",
-  "Check-in": "bg-accent/10 text-accent",
-  "Check-out": "bg-secondary text-muted-foreground",
-  Dibatalkan: "bg-destructive/10 text-destructive",
-};
+function labelStatus(b: any) {
+  const s = String(b?.bookingStatus ?? "");
+  if (s === "pending_payment") return "Menunggu Pembayaran";
+  if (s === "waiting_confirmation") return "Menunggu Konfirmasi";
+  if (s === "confirmed") return "Dikonfirmasi";
+  if (s === "checked_in") return "Check-in";
+  if (s === "checked_out") return "Check-out";
+  if (s === "cancelled") return "Dibatalkan";
+  return String(b?.status ?? "-");
+}
+
+function statusClass(label: string) {
+  if (label.includes("Menunggu")) return "bg-warning/15 text-warning";
+  if (label === "Dikonfirmasi") return "bg-blue-100 text-blue-700";
+  if (label === "Check-in") return "bg-accent/10 text-accent";
+  if (label === "Check-out") return "bg-secondary text-muted-foreground";
+  if (label === "Dibatalkan") return "bg-destructive/10 text-destructive";
+  return "bg-secondary text-muted-foreground";
+}
 
 const tabs = ["Semua", "Aktif", "Selesai", "Dibatalkan"];
 
 function MyBookings() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState(0); // 0: Semua, 1: Aktif, 2: Selesai, 3: Dibatalkan
-  const guests = useGuests("");
-  const [selectedGuestId, setSelectedGuestId] = React.useState(() => {
-    return localStorage.getItem("stayly_guest_id") ?? "";
-  });
-
-  React.useEffect(() => {
-    if (selectedGuestId) localStorage.setItem("stayly_guest_id", selectedGuestId);
-  }, [selectedGuestId]);
-
-  const status =
-    activeTab === 1
-      ? undefined
-      : activeTab === 2
-        ? "Check-out"
-        : activeTab === 3
-          ? "Dibatalkan"
-          : undefined;
-
-  const bookings = useBookings({
-    tamuId: selectedGuestId || undefined,
-    status: activeTab === 1 ? undefined : status,
+  const bookings = useQuery({
+    queryKey: ["bookings", "my"],
+    enabled: isLoggedIn(),
+    queryFn: () => apiRequest<any[]>("/bookings/my"),
   });
 
   const filteredBookings = React.useMemo(() => {
     const data = bookings.data ?? [];
     if (activeTab === 1) {
-      return data.filter((b) => ["Menunggu", "Dikonfirmasi", "Check-in"].includes(b.status));
+      return data.filter((b) =>
+        ["pending_payment", "waiting_confirmation", "confirmed", "checked_in"].includes(
+          String(b.bookingStatus ?? "")
+        )
+      );
     }
+    if (activeTab === 2) return data.filter((b) => String(b.bookingStatus ?? "") === "checked_out");
+    if (activeTab === 3) return data.filter((b) => String(b.bookingStatus ?? "") === "cancelled");
     return data;
   }, [activeTab, bookings.data]);
+
+  React.useEffect(() => {
+    if (!isLoggedIn()) navigate({ to: "/login", search: { redirectTo: "/booking-saya" } as any });
+  }, [navigate]);
+  if (!isLoggedIn()) return null;
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-8">
@@ -62,27 +70,6 @@ function MyBookings() {
         <p className="mt-1 text-sm text-muted-foreground">
           Semua booking dan riwayat menginap Anda
         </p>
-
-        <div className="mt-5 rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
-          <div className="text-xs font-semibold text-muted-foreground">Pilih Tamu</div>
-          <select
-            value={selectedGuestId}
-            onChange={(e) => setSelectedGuestId(e.target.value)}
-            className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
-          >
-            <option value="">— Pilih —</option>
-            {(guests.data ?? []).map((g) => (
-              <option key={g._id} value={g._id}>
-                {g.nama} ({g.email})
-              </option>
-            ))}
-          </select>
-          {!selectedGuestId && (
-            <div className="mt-2 text-xs text-muted-foreground">
-              Belum ada login pada tahap ini. Pilih tamu untuk melihat daftar booking.
-            </div>
-          )}
-        </div>
 
         <div className="mt-5 flex gap-2 overflow-x-auto pb-2">
           {tabs.map((t, i) => (
@@ -97,24 +84,22 @@ function MyBookings() {
         </div>
 
         <div className="mt-5 space-y-3">
-          {selectedGuestId && bookings.isLoading && (
+          {bookings.isLoading && (
             <div className="text-center text-muted-foreground py-10">Memuat booking...</div>
           )}
-          {selectedGuestId && bookings.isError && (
+          {bookings.isError && (
             <div className="text-center text-destructive py-10">
               {bookings.error instanceof Error ? bookings.error.message : "Gagal memuat booking"}
             </div>
           )}
-          {selectedGuestId &&
-            !bookings.isLoading &&
-            !bookings.isError &&
-            filteredBookings.length === 0 && (
-              <div className="text-center text-muted-foreground py-10">
-                Tidak ada booking pada kategori ini.
-              </div>
-            )}
+          {!bookings.isLoading && !bookings.isError && filteredBookings.length === 0 && (
+            <div className="text-center text-muted-foreground py-10">
+              Tidak ada booking pada kategori ini.
+            </div>
+          )}
           {filteredBookings.map((b) => {
             const roomType = b.roomTypeId;
+            const st = labelStatus(b);
             return (
               <div key={b._id} className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
                 <div className="flex gap-4">
@@ -140,17 +125,21 @@ function MyBookings() {
                         </div>
                       </div>
                       <span
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusStyle[b.status]}`}
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(st)}`}
                       >
-                        {b.status}
+                        {st}
                       </span>
                     </div>
                     <div className="mt-3 flex items-end justify-between">
                       <div className="text-base font-bold">{formatRupiah(b.total ?? 0)}</div>
                       <div className="flex gap-1.5">
-                        <button className="rounded-lg border border-border p-2">
+                        <Link
+                          to="/booking-berhasil/$id"
+                          params={{ id: b._id }}
+                          className="rounded-lg border border-border p-2"
+                        >
                           <QrCode className="h-4 w-4" />
-                        </button>
+                        </Link>
                         <button className="rounded-lg border border-border p-2">
                           <FileText className="h-4 w-4" />
                         </button>

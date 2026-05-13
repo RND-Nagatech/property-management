@@ -1,22 +1,65 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { TopBar } from "@/components/customer/Nav";
-import { rooms } from "@/lib/data";
 import { CheckCircle2, QrCode, Download, Calendar } from "lucide-react";
+import { isLoggedIn } from "@/services/auth";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/services/api";
+import { useEffect, useState } from "react";
+import QRCodeLib from "qrcode";
 
 export const Route = createFileRoute("/booking-berhasil/$id")({
   head: () => ({ meta: [{ title: "Booking Berhasil — Stayly" }] }),
-  loader: ({ params }) => {
-    const room = rooms.find((r) => r.id === params.id);
-    if (!room) throw notFound();
-    return { room };
-  },
-  notFoundComponent: () => <div className="p-10">Tidak ditemukan</div>,
-  errorComponent: ({ error }) => <div className="p-10">{error.message}</div>,
   component: Success,
 });
 
 function Success() {
-  const { room } = Route.useLoaderData();
+  const navigate = useNavigate();
+  const params = Route.useParams();
+  const [qr, setQr] = useState<string>("");
+
+  const booking = useQuery({
+    queryKey: ["bookings", params.id],
+    enabled: isLoggedIn(),
+    queryFn: () => apiRequest<any>(`/bookings/${encodeURIComponent(params.id)}`),
+  });
+
+  useEffect(() => {
+    const code = String(booking.data?.kodeBooking ?? "");
+    if (!code) return;
+    QRCodeLib.toDataURL(code, { margin: 1, width: 220 }).then(setQr).catch(() => setQr(""));
+  }, [booking.data?.kodeBooking]);
+
+  useEffect(() => {
+    if (!isLoggedIn()) {
+      navigate({ to: "/login", search: { redirectTo: `/booking-berhasil/${params.id}` } as any });
+    }
+  }, [navigate, params.id]);
+  if (!isLoggedIn()) return null;
+
+  if (booking.isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TopBar />
+        <div className="mx-auto max-w-2xl px-4 py-10 text-sm text-muted-foreground">
+          Memuat booking...
+        </div>
+      </div>
+    );
+  }
+
+  if (booking.isError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TopBar />
+        <div className="mx-auto max-w-2xl px-4 py-10 text-sm text-destructive">
+          {booking.error instanceof Error ? booking.error.message : "Gagal memuat booking"}
+        </div>
+      </div>
+    );
+  }
+
+  const data = booking.data;
+  const roomType = data?.roomTypeId;
   return (
     <div className="min-h-screen bg-background">
       <TopBar />
@@ -35,27 +78,44 @@ function Success() {
               Booking Code
             </div>
             <div className="mt-1 font-mono text-2xl font-bold tracking-widest">
-              STY-2026-{room.id.slice(0, 3).toUpperCase()}-8421
+              {data?.kodeBooking ?? "-"}
             </div>
           </div>
 
           <div className="mt-6 inline-flex items-center justify-center rounded-2xl bg-white p-5 shadow-[var(--shadow-card)]">
             <div className="flex h-44 w-44 items-center justify-center rounded-xl bg-secondary">
-              <QrCode className="h-32 w-32 text-primary" />
+              {qr ? (
+                <img src={qr} alt="QR Booking" className="h-40 w-40" />
+              ) : (
+                <QrCode className="h-32 w-32 text-primary" />
+              )}
             </div>
           </div>
 
           <div className="mt-6 rounded-2xl bg-secondary/50 p-5 text-left">
             <div className="flex items-center gap-3">
-              <img src={room.image} alt="" className="h-14 w-14 rounded-lg object-cover" />
+              {roomType?.gambarThumbnail ? (
+                <img
+                  src={roomType.gambarThumbnail}
+                  alt=""
+                  className="h-14 w-14 rounded-lg object-cover"
+                />
+              ) : (
+                <div className="h-14 w-14 rounded-lg bg-secondary" />
+              )}
               <div>
-                <div className="text-sm font-bold">{room.name}</div>
+                <div className="text-sm font-bold">{roomType?.namaTipe ?? "-"}</div>
                 <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-                  <Calendar className="h-3 w-3" /> 12 Mei 2026 → 15 Mei 2026
+                  <Calendar className="h-3 w-3" />{" "}
+                  {String(data?.checkIn ?? "").slice(0, 10)} → {String(data?.checkOut ?? "").slice(0, 10)}
                 </div>
               </div>
               <span className="ml-auto rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-accent-foreground">
-                Dikonfirmasi
+                {data?.bookingStatus === "confirmed"
+                  ? "Dikonfirmasi"
+                  : data?.bookingStatus === "waiting_confirmation"
+                    ? "Menunggu Konfirmasi"
+                    : "Menunggu Pembayaran"}
               </span>
             </div>
           </div>

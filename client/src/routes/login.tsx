@@ -1,7 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useState, type InputHTMLAttributes } from "react";
 import heroImg from "@/assets/hero-villa.jpg";
+import { apiRequest } from "@/services/api";
+import { setAuthToken } from "@/services/auth";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -15,6 +17,33 @@ export const Route = createFileRoute("/login")({
 
 function Login() {
   const [show, setShow] = useState(false);
+  const navigate = useNavigate();
+  const search = Route.useSearch() as any;
+  const redirectTo = typeof search?.redirectTo === "string" && search.redirectTo ? search.redirectTo : "/";
+
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string>("");
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      const res = await apiRequest<{ token: string; customer: any }>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ identifier, password }),
+      });
+      setAuthToken(res.token);
+      navigate({ to: redirectTo });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal login");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="grid min-h-screen md:grid-cols-2">
       <div className="relative hidden md:block">
@@ -48,14 +77,22 @@ function Login() {
             Selamat datang kembali, silakan masuk.
           </p>
 
-          <form className="mt-8 space-y-4" onSubmit={(e) => e.preventDefault()}>
-            <Input label="Email atau No. HP" type="text" placeholder="nama@email.com" />
+          <form className="mt-8 space-y-4" onSubmit={onSubmit}>
+            <Input
+              label="Email atau No. HP"
+              type="text"
+              placeholder="nama@email.com"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+            />
             <div>
               <label className="text-sm font-medium">Password</label>
               <div className="mt-1.5 relative">
                 <input
                   type={show ? "text" : "password"}
                   placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full rounded-xl border border-input bg-card px-4 py-3 pr-11 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
                 />
                 <button
@@ -79,8 +116,9 @@ function Login() {
                 Lupa password?
               </a>
             </div>
+            {error && <div className="text-sm text-destructive">{error}</div>}
             <button className="w-full rounded-xl bg-accent py-3.5 text-sm font-semibold text-accent-foreground hover:opacity-90">
-              Masuk
+              {submitting ? "Memproses..." : "Masuk"}
             </button>
           </form>
 
@@ -99,7 +137,7 @@ function Login() {
 function Input({
   label,
   ...rest
-}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+}: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div>
       <label className="text-sm font-medium">{label}</label>

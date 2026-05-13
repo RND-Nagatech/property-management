@@ -35,7 +35,7 @@ function CheckOut() {
   async function onConfirm() {
     if (!booking.data) return;
     try {
-      const depositDefault = booking.data.roomTypeId?.depositDefault ?? 0;
+      const depositDefault = (booking.data.roomTypeId as any)?.depositDefault ?? 0;
       const held = deposit.data?.jumlah ?? depositDefault;
       const cut = Number(potongan || "0");
       const refund = Math.max(0, held - (Number.isFinite(cut) ? cut : 0));
@@ -43,7 +43,7 @@ function CheckOut() {
       if (!deposit.data) {
         await createDeposit.mutateAsync({
           bookingId: booking.data._id,
-          tamuId: booking.data.tamuId?._id ?? "",
+          tamuId: (booking.data.tamuId as any)?._id ?? "",
           jumlah: held,
           potongan: cut,
           refundJumlah: refund,
@@ -108,12 +108,12 @@ function CheckOut() {
             {!booking.isLoading && !booking.isError && booking.data && (
               <>
                 <div className="text-xs text-muted-foreground">
-                  {booking.data.kodeBooking} · {booking.data.tamuId?.nama ?? "-"}
+                  {booking.data.kodeBooking} · {(booking.data.tamuId as any)?.nama ?? "-"}
                 </div>
                 <div className="text-lg font-bold">
-                  {booking.data.roomTypeId?.namaTipe ?? "-"}
-                  {booking.data.roomId?._id && typeof booking.data.roomId === "object"
-                    ? ` — Kamar ${booking.data.roomId.nomorKamar}`
+                  {(booking.data.roomTypeId as any)?.namaTipe ?? "-"}
+                  {(booking.data.roomId as any)?._id && typeof booking.data.roomId === "object"
+                    ? ` — Kamar ${(booking.data.roomId as any).nomorKamar}`
                     : ""}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
@@ -133,7 +133,7 @@ function CheckOut() {
               <Row
                 label="Deposit ditahan"
                 value={formatRupiah(
-                  booking.data?.roomTypeId?.depositDefault ?? deposit.data?.jumlah ?? 0,
+                  (booking.data?.roomTypeId as any)?.depositDefault ?? deposit.data?.jumlah ?? 0,
                 )}
               />
             </div>
@@ -166,7 +166,7 @@ function CheckOut() {
                 {formatRupiah(
                   Math.max(
                     0,
-                    (deposit.data?.jumlah ?? booking.data?.roomTypeId?.depositDefault ?? 0) -
+                    (deposit.data?.jumlah ?? (booking.data?.roomTypeId as any)?.depositDefault ?? 0) -
                       Number(potongan || "0"),
                   ),
                 )}

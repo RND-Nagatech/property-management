@@ -16,6 +16,9 @@ import { calendarRouter } from "./routes/calendar.js";
 import { settingsRouter } from "./routes/settings.js";
 import { dashboardRouter } from "./routes/dashboard.js";
 import { reportsRouter } from "./routes/reports.js";
+import { authRouter } from "./routes/auth.js";
+import { adminPaymentsRouter } from "./routes/admin-payments.js";
+import { adminBookingsRouter } from "./routes/admin-bookings.js";
 
 async function main() {
   await connectDb(env.MONGODB_URI);
@@ -24,7 +27,7 @@ async function main() {
   app.disable("x-powered-by");
 
   app.use(morgan("dev"));
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: "6mb" }));
   app.use(
     cors({
       origin: env.CORS_ORIGIN,
@@ -33,6 +36,9 @@ async function main() {
   );
 
   app.get("/health", (_req, res) => res.json({ ok: true }));
+  app.use("/api/auth", authRouter);
+  app.use("/api/admin/payments", adminPaymentsRouter);
+  app.use("/api/admin/bookings", adminBookingsRouter);
   app.use("/api/dashboard", dashboardRouter);
   app.use("/api/reports", reportsRouter);
   app.use("/api/room-types", roomTypesRouter);

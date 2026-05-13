@@ -87,8 +87,8 @@ function BookingPage() {
     setEditing(b);
     setForm({
       kodeBooking: b.kodeBooking,
-      tamuId: b.tamuId?._id ?? "",
-      roomTypeId: b.roomTypeId?._id ?? "",
+      tamuId: (b.tamuId as any)?._id ?? "",
+      roomTypeId: (b.roomTypeId as any)?._id ?? "",
       checkIn: String(b.checkIn).slice(0, 10),
       checkOut: String(b.checkOut).slice(0, 10),
       status: b.status,
@@ -191,8 +191,8 @@ function BookingPage() {
               {(bookings.data ?? []).map((b) => (
                 <tr key={b._id} className="hover:bg-secondary/40">
                   <td className="py-3.5 font-mono text-xs font-bold">{b.kodeBooking}</td>
-                  <td className="py-3.5 font-medium">{b.tamuId?.nama ?? "-"}</td>
-                  <td className="py-3.5 text-muted-foreground">{b.roomTypeId?.namaTipe ?? "-"}</td>
+                  <td className="py-3.5 font-medium">{(b.tamuId as any)?.nama ?? "-"}</td>
+                  <td className="py-3.5 text-muted-foreground">{(b.roomTypeId as any)?.namaTipe ?? "-"}</td>
                   <td className="py-3.5 text-muted-foreground">
                     {String(b.checkIn).slice(0, 10)} → {String(b.checkOut).slice(0, 10)}
                   </td>

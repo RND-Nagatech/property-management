@@ -1,3 +1,5 @@
+import { getAuthToken } from "./auth";
+
 type ApiError = {
   code?: string;
   message?: string;
@@ -24,11 +26,13 @@ async function parseJsonSafe(response: Response) {
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
+  const token = getAuthToken();
 
   const response = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });

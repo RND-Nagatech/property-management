@@ -19,7 +19,7 @@ function CheckInPage() {
   const updateBooking = useUpdateBooking();
   const checkIn = useCheckInBooking();
 
-  const roomTypeId = booking.data?.roomTypeId?._id;
+  const roomTypeId = (booking.data?.roomTypeId as any)?._id;
   const availableRooms = useRooms(roomTypeId ? { roomTypeId, status: "tersedia" } : undefined);
   const [selectedRoomId, setSelectedRoomId] = useState("");
 
@@ -35,7 +35,7 @@ function CheckInPage() {
     if (!booking.data) return;
 
     try {
-      const hasRoom = Boolean(booking.data.roomId?._id);
+      const hasRoom = Boolean((booking.data.roomId as any)?._id);
       if (!hasRoom) {
         if (!selectedRoomId) {
           toast.error("Pilih kamar fisik terlebih dahulu");
@@ -104,16 +104,16 @@ function CheckInPage() {
               <>
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-muted-foreground">
-                    {booking.data.kodeBooking} · {booking.data.tamuId?.nama ?? "-"}
+                    {booking.data.kodeBooking} · {(booking.data.tamuId as any)?.nama ?? "-"}
                   </div>
                   <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
                     Siap Check-in
                   </span>
                 </div>
                 <div className="mt-2 text-sm font-bold">
-                  {booking.data.roomTypeId?.namaTipe ?? "-"}
-                  {booking.data.roomId?._id && typeof booking.data.roomId === "object"
-                    ? ` — Kamar ${booking.data.roomId.nomorKamar}`
+                  {(booking.data.roomTypeId as any)?.namaTipe ?? "-"}
+                  {(booking.data.roomId as any)?._id && typeof booking.data.roomId === "object"
+                    ? ` — Kamar ${(booking.data.roomId as any).nomorKamar}`
                     : ""}
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground">
@@ -121,7 +121,7 @@ function CheckInPage() {
                   {String(booking.data.checkOut).slice(0, 10)} · {booking.data.dewasa} tamu
                 </div>
 
-                {!booking.data.roomId?._id && (
+                {!(booking.data.roomId as any)?._id && (
                   <div className="mt-4">
                     <div className="text-xs font-semibold text-muted-foreground">
                       Pilih Kamar Fisik

@@ -10,6 +10,12 @@ export const Route = createFileRoute("/admin/pembayaran")({
   head: () => ({ meta: [{ title: "Pembayaran" }] }),
   component: Pembayaran,
 });
+function labelStatus(status: string) {
+  if (status === "paid" || status === "Terverifikasi") return "Terverifikasi";
+  if (status === "failed" || status === "Ditolak") return "Ditolak";
+  return "Menunggu";
+}
+
 const sc: Record<string, string> = {
   Terverifikasi: "bg-accent/10 text-accent",
   Menunggu: "bg-warning/15 text-warning",
@@ -22,7 +28,11 @@ function Pembayaran() {
 
   async function setStatus(id: string, status: "Terverifikasi" | "Ditolak") {
     try {
-      await updatePayment.mutateAsync({ id, payload: { status } });
+      if (status === "Terverifikasi") {
+        await updatePayment.mutateAsync({ id, action: "verify" });
+      } else {
+        await updatePayment.mutateAsync({ id, action: "reject", payload: { rejectionReason: "" } });
+      }
       toast.success(status === "Terverifikasi" ? "Pembayaran terverifikasi" : "Pembayaran ditolak");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal update pembayaran");
@@ -59,22 +69,27 @@ function Pembayaran() {
             {(payments.data ?? []).map((d) => (
               <tr key={d._id} className="hover:bg-secondary/40">
                 <td className="py-3.5 font-mono text-xs font-bold">{d.invoice}</td>
-                <td className="py-3.5 font-medium">{d.tamuId?.nama ?? "-"}</td>
+                <td className="py-3.5 font-medium">{(d.tamuId as any)?.nama ?? "-"}</td>
                 <td className="py-3.5 text-muted-foreground">{d.metode}</td>
                 <td className="py-3.5 font-semibold">{formatRupiah(d.jumlah)}</td>
                 <td className="py-3.5">
+                  {(() => {
+                    const lbl = labelStatus(String(d.status));
+                    return (
                   <span
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sc[d.status]}`}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sc[lbl]}`}
                   >
-                    {d.status}
+                    {lbl}
                   </span>
+                    );
+                  })()}
                 </td>
                 <td className="py-3.5">
                   <div className="flex justify-end gap-1.5">
                     <button className="rounded-lg border border-border p-1.5">
                       <Eye className="h-3.5 w-3.5" />
                     </button>
-                    {d.status === "Menunggu" && (
+                    {labelStatus(String(d.status)) === "Menunggu" && (
                       <>
                         <button
                           onClick={() => setStatus(d._id, "Terverifikasi")}

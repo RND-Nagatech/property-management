@@ -1,24 +1,27 @@
-import { createFileRoute, Link, notFound, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { TopBar } from "@/components/customer/Nav";
-import { rooms, formatRupiah } from "@/lib/data";
+import { formatRupiah } from "@/lib/currency";
 import { diffNights, formatDateId } from "@/lib/dates";
 import { pickBookingSearchState } from "@/lib/booking-search-state";
 import { ArrowLeft, Check } from "lucide-react";
+import { useRoomType } from "@/hooks/useRoomTypes";
+import { isLoggedIn } from "@/services/auth";
+import { useMe } from "@/hooks/useMe";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/services/api";
+import type { InputHTMLAttributes, ReactNode } from "react";
+import { useEffect } from "react";
 
 export const Route = createFileRoute("/booking/$id")({
   head: () => ({ meta: [{ title: "Booking Kamar — Stayly" }] }),
-  loader: ({ params }) => {
-    const room = rooms.find((r) => r.id === params.id);
-    if (!room) throw notFound();
-    return { room };
-  },
-  notFoundComponent: () => <div className="p-10">Kamar tidak ditemukan</div>,
-  errorComponent: ({ error }) => <div className="p-10">{error.message}</div>,
   component: BookingPage,
 });
 
 function BookingPage() {
-  const { room } = Route.useLoaderData();
+  const navigate = useNavigate();
+  const params = Route.useParams();
+  const roomType = useRoomType(params.id);
+  const me = useMe();
   const locationState = useRouterState({ select: (s) => s.location.state });
   const searchState = pickBookingSearchState(locationState);
   const checkin = searchState.checkin ?? "2026-05-12";
@@ -27,11 +30,75 @@ function BookingPage() {
   const children = searchState.children ?? 0;
 
   const nights = diffNights(checkin, checkout);
-  const subtotal = room.price * nights;
+  const pricePerNight = roomType.data?.hargaDefault ?? 0;
+  const subtotal = pricePerNight * nights;
   const tax = Math.round(subtotal * 0.1);
-  const deposit = 300000;
+  const deposit = roomType.data?.depositDefault ?? 0;
   const total = subtotal + tax + deposit;
   const guestLabel = children > 0 ? `${adults} dewasa, ${children} anak` : `${adults} dewasa`;
+
+  const createBooking = useMutation({
+    mutationFn: async () => {
+      if (!roomType.data) throw new Error("Tipe kamar tidak ditemukan");
+      return apiRequest<any>("/bookings", {
+        method: "POST",
+        body: JSON.stringify({
+          roomTypeId: roomType.data._id,
+          checkIn: checkin,
+          checkOut: checkout,
+          dewasa: adults,
+          anak: children,
+          total,
+        }),
+      });
+    },
+    onSuccess: (booking) => {
+      navigate({ to: "/pembayaran/$id", params: { id: booking._id } });
+    },
+  });
+
+  useEffect(() => {
+    if (!isLoggedIn()) {
+      navigate({ to: "/login", search: { redirectTo: `/booking/${params.id}` } as any });
+    }
+  }, [navigate, params.id]);
+
+  if (!isLoggedIn()) return null;
+
+  if (roomType.isLoading) {
+    return (
+      <div className="min-h-screen bg-background pb-28 lg:pb-12">
+        <TopBar />
+        <div className="mx-auto max-w-5xl px-4 py-10 text-sm text-muted-foreground">
+          Memuat data tipe kamar...
+        </div>
+      </div>
+    );
+  }
+
+  if (roomType.isError) {
+    return (
+      <div className="min-h-screen bg-background pb-28 lg:pb-12">
+        <TopBar />
+        <div className="mx-auto max-w-5xl px-4 py-10 text-sm text-destructive">
+          {roomType.error instanceof Error ? roomType.error.message : "Gagal memuat tipe kamar"}
+        </div>
+      </div>
+    );
+  }
+
+  if (!roomType.data) {
+    return (
+      <div className="min-h-screen bg-background pb-28 lg:pb-12">
+        <TopBar />
+        <div className="mx-auto max-w-5xl px-4 py-10 text-sm text-muted-foreground">
+          Tipe kamar tidak ditemukan.
+        </div>
+      </div>
+    );
+  }
+
+  const room = roomType.data;
 
   return (
     <div className="min-h-screen bg-background pb-28 lg:pb-12">
@@ -39,7 +106,7 @@ function BookingPage() {
       <div className="mx-auto max-w-5xl px-4 py-5 md:py-6">
         <Link
           to="/kamar/$id"
-          params={{ id: room.id }}
+          params={{ id: room.slug }}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" /> Kembali
@@ -61,10 +128,10 @@ function BookingPage() {
             <Card>
               <h2 className="text-base font-bold md:text-lg">Data Tamu Utama</h2>
               <div className="mt-3 grid gap-3 md:mt-4 md:gap-4 sm:grid-cols-2">
-                <Input label="Nama Lengkap" defaultValue="Budi Santoso" />
-                <Input label="No. HP" defaultValue="0812 3456 7890" />
-                <Input label="Email" defaultValue="budi@email.com" />
-                <Input label="NIK" defaultValue="3201234567890001" />
+                <Input label="Nama Lengkap" defaultValue={me.data?.namaLengkap ?? ""} disabled />
+                <Input label="No. HP" defaultValue={me.data?.noHp ?? ""} disabled />
+                <Input label="Email" defaultValue={me.data?.email ?? ""} disabled />
+                <Input label="NIK" defaultValue={me.data?.nik ?? ""} disabled />
               </div>
             </Card>
 
@@ -79,74 +146,83 @@ function BookingPage() {
           </div>
 
           <aside className="lg:sticky lg:top-20 lg:self-start">
-            <Card className="overflow-hidden p-0">
-              <div className="flex gap-4 p-4 md:p-5">
-                <img
-                  src={room.image}
-                  alt={room.name}
-                  className="h-20 w-24 shrink-0 rounded-xl object-cover"
-                />
-                <div>
-                  <div className="text-sm font-bold">{room.name}</div>
-                  <div className="mt-0.5 text-xs text-muted-foreground">
-                    {room.bed} · {room.capacity} tamu
-                  </div>
-                  {room.breakfast && (
-                    <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-accent">
-                      <Check className="h-3 w-3" />
-                      Termasuk Sarapan
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="border-t border-border p-4 md:p-5">
-                <h3 className="text-sm font-bold">Rincian Harga</h3>
-                <div className="mt-3 space-y-2 text-sm">
-                  <Row
-                    label={`${formatRupiah(room.price)} × ${nights} malam`}
-                    value={formatRupiah(subtotal)}
-                  />
-                  <Row label="Pajak & layanan" value={formatRupiah(tax)} />
-                  <Row label="Deposit (refundable)" value={formatRupiah(deposit)} />
-                </div>
+	            <Card className="overflow-hidden p-0">
+	              <div className="flex gap-4 p-4 md:p-5">
+	                <img
+	                  src={room.gambarThumbnail}
+	                  alt={room.namaTipe}
+	                  className="h-20 w-24 shrink-0 rounded-xl object-cover"
+	                />
+	                <div>
+	                  <div className="text-sm font-bold">{room.namaTipe}</div>
+	                  <div className="mt-0.5 text-xs text-muted-foreground">
+	                    {room.tipeKasur} · {room.kapasitas} tamu
+	                  </div>
+	                  {room.includeSarapan && (
+	                    <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-accent">
+	                      <Check className="h-3 w-3" />
+	                      Termasuk Sarapan
+	                    </div>
+	                  )}
+	                </div>
+	              </div>
+	              <div className="border-t border-border p-4 md:p-5">
+	                <h3 className="text-sm font-bold">Rincian Harga</h3>
+	                <div className="mt-3 space-y-2 text-sm">
+	                  <Row
+	                    label={`${formatRupiah(pricePerNight)} × ${nights} malam`}
+	                    value={formatRupiah(subtotal)}
+	                  />
+	                  <Row label="Pajak & layanan" value={formatRupiah(tax)} />
+	                  <Row label="Deposit (refundable)" value={formatRupiah(deposit)} />
+	                </div>
                 <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
                   <span className="text-sm font-bold">Total Bayar</span>
                   <span className="text-lg font-bold">{formatRupiah(total)}</span>
                 </div>
-                <Link
-                  to="/pembayaran/$id"
-                  params={{ id: room.id }}
-                  className="mt-4 hidden lg:block w-full rounded-xl bg-accent py-3.5 text-center text-sm font-semibold text-accent-foreground hover:opacity-90"
-                >
-                  Lanjut ke Pembayaran
-                </Link>
-              </div>
-            </Card>
+	                <button
+	                  type="button"
+	                  onClick={() => createBooking.mutate()}
+	                  disabled={createBooking.isPending}
+	                  className="mt-4 hidden lg:block w-full rounded-xl bg-accent py-3.5 text-center text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-50"
+	                >
+	                  {createBooking.isPending ? "Memproses..." : "Lanjut ke Pembayaran"}
+	                </button>
+	                {createBooking.isError && (
+	                  <div className="mt-3 text-sm text-destructive">
+	                    {createBooking.error instanceof Error
+	                      ? createBooking.error.message
+	                      : "Gagal membuat booking"}
+	                  </div>
+	                )}
+	              </div>
+	            </Card>
           </aside>
         </div>
       </div>
 
       {/* Sticky mobile CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card px-4 py-3 lg:hidden">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[11px] text-muted-foreground">Total</div>
-            <div className="text-base font-bold">{formatRupiah(total)}</div>
-          </div>
-          <Link
-            to="/pembayaran/$id"
-            params={{ id: room.id }}
-            className="flex-1 rounded-xl bg-accent py-3.5 text-center text-sm font-semibold text-accent-foreground"
-          >
-            Lanjut Bayar
-          </Link>
-        </div>
-      </div>
+	      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card px-4 py-3 lg:hidden">
+	        <div className="flex items-center justify-between gap-3">
+	          <div>
+	            <div className="text-[11px] text-muted-foreground">Total</div>
+	            <div className="text-base font-bold">{formatRupiah(total)}</div>
+	          </div>
+	          <button
+	            type="button"
+	            onClick={() => createBooking.mutate()}
+	            disabled={createBooking.isPending}
+	            className="flex-1 rounded-xl bg-accent py-3.5 text-center text-sm font-semibold text-accent-foreground disabled:opacity-50"
+	          >
+	            {createBooking.isPending ? "Memproses..." : "Lanjut Bayar"}
+	          </button>
+	        </div>
+	      </div>
     </div>
   );
 }
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div className={`rounded-2xl bg-card p-6 shadow-[var(--shadow-card)] ${className}`}>
       {children}
@@ -164,7 +240,7 @@ function Field({ label, value }: { label: string; value: string }) {
 function Input({
   label,
   ...rest
-}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+}: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div>
       <label className="text-sm font-medium">{label}</label>

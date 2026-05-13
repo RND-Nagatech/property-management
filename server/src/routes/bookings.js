@@ -2,11 +2,39 @@ import express from "express";
 import mongoose from "mongoose";
 import { Booking } from "../models/Booking.js";
 import { Room } from "../models/Room.js";
+import { requireAuth } from "../auth.js";
+import { Customer } from "../models/Customer.js";
+import { generateBookingCode } from "../utils/booking-code.js";
 
 export const bookingsRouter = express.Router();
 
 function isObjectId(value) {
   return typeof value === "string" && mongoose.isValidObjectId(value);
+}
+
+function overlaps(checkIn, checkOut) {
+  return {
+    checkIn: { $lt: checkOut },
+    checkOut: { $gt: checkIn },
+  };
+}
+
+function mapBookingStatusToLegacy(status) {
+  switch (status) {
+    case "pending_payment":
+    case "waiting_confirmation":
+      return "Menunggu";
+    case "confirmed":
+      return "Dikonfirmasi";
+    case "checked_in":
+      return "Check-in";
+    case "checked_out":
+      return "Check-out";
+    case "cancelled":
+      return "Dibatalkan";
+    default:
+      return "Menunggu";
+  }
 }
 
 bookingsRouter.get("/", async (req, res, next) => {
@@ -37,6 +65,25 @@ bookingsRouter.get("/", async (req, res, next) => {
   }
 });
 
+// Customer bookings (requires login)
+bookingsRouter.get("/my", requireAuth, async (req, res, next) => {
+  try {
+    const userId = String(req.user?.sub ?? "");
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token tidak valid" } });
+    }
+    const items = await Booking.find({ customerId: userId })
+      .sort({ createdAt: -1 })
+      .populate("roomTypeId")
+      .populate("roomId")
+      .select("-__v")
+      .lean();
+    res.json({ data: items });
+  } catch (err) {
+    next(err);
+  }
+});
+
 bookingsRouter.get("/by-code/:code", async (req, res, next) => {
   try {
     const kodeBooking = String(req.params.code ?? "").trim();
@@ -53,16 +100,113 @@ bookingsRouter.get("/by-code/:code", async (req, res, next) => {
   }
 });
 
-bookingsRouter.post("/", async (req, res, next) => {
+// Get booking by id (customer access)
+bookingsRouter.get("/:id", requireAuth, async (req, res, next) => {
+  try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "id tidak valid" } });
+    }
+    const userId = String(req.user?.sub ?? "");
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token tidak valid" } });
+    }
+    const booking = await Booking.findById(req.params.id)
+      .populate("roomTypeId")
+      .populate("roomId")
+      .select("-__v")
+      .lean();
+    if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
+    if (String(booking.customerId ?? "") !== userId) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "Tidak punya akses" } });
+    }
+    res.json({ data: booking });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Create booking (customer must login). Auto-generate kodeBooking (BK-yymmdd-xxx) + auto assign physical room.
+bookingsRouter.post("/", requireAuth, async (req, res, next) => {
   try {
     const body = req.body ?? {};
-    const required = ["kodeBooking", "tamuId", "roomTypeId", "checkIn", "checkOut"];
+    const required = ["roomTypeId", "checkIn", "checkOut"];
     for (const k of required) {
-      if (!body[k]) {
-        return res.status(400).json({ error: { code: "BAD_REQUEST", message: `${k} wajib` } });
+      if (!body[k]) return res.status(400).json({ error: { code: "BAD_REQUEST", message: `${k} wajib` } });
+    }
+    if (!mongoose.isValidObjectId(String(body.roomTypeId))) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "roomTypeId tidak valid" } });
+    }
+    const checkIn = new Date(body.checkIn);
+    const checkOut = new Date(body.checkOut);
+    if (!checkIn.getTime() || !checkOut.getTime()) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "checkIn/checkOut tidak valid" } });
+    }
+    if (checkOut <= checkIn) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "checkOut harus setelah checkIn" } });
+    }
+
+    const userId = String(req.user?.sub ?? "");
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token tidak valid" } });
+    }
+
+    const customer = await Customer.findById(userId).select("-passwordHash -__v").lean();
+    if (!customer) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "User tidak ditemukan" } });
+
+    // Find an available physical room of this type that has no overlapping active booking
+    const rooms = await Room.find({ roomTypeId: body.roomTypeId, status: "tersedia" })
+      .sort({ nomorKamar: 1 })
+      .select({ _id: 1 })
+      .lean();
+
+    let assignedRoomId = null;
+    for (const r of rooms) {
+      const conflict = await Booking.exists({
+        roomId: r._id,
+        $or: [
+          { bookingStatus: { $in: ["pending_payment", "waiting_confirmation", "confirmed", "checked_in"] } },
+          { bookingStatus: { $exists: false }, status: { $in: ["Menunggu", "Dikonfirmasi", "Check-in"] } },
+        ],
+        ...overlaps(checkIn, checkOut),
+      });
+      if (!conflict) {
+        assignedRoomId = r._id;
+        break;
       }
     }
-    const created = await Booking.create(body);
+    if (!assignedRoomId) {
+      return res.status(409).json({ error: { code: "NO_AVAILABILITY", message: "Kamar tidak tersedia di tanggal tersebut" } });
+    }
+
+    const kodeBooking = await generateBookingCode(new Date());
+    const bookingStatus = "pending_payment";
+    const paymentStatus = "unpaid";
+
+    const created = await Booking.create({
+      kodeBooking,
+      tamuId: body.tamuId, // legacy (optional), keep if FE still sends
+      customerId: userId,
+      guestSnapshot: {
+        namaLengkap: customer.namaLengkap ?? "",
+        noHp: customer.noHp ?? "",
+        email: customer.email ?? "",
+        nik: customer.nik ?? "",
+        alamat: customer.alamat ?? "",
+      },
+      roomTypeId: body.roomTypeId,
+      roomId: assignedRoomId,
+      checkIn,
+      checkOut,
+      dewasa: Number(body.dewasa ?? 2),
+      anak: Number(body.anak ?? 0),
+      catatan: String(body.catatan ?? ""),
+      total: Number(body.total ?? 0),
+      bookingStatus,
+      paymentStatus,
+      status: mapBookingStatusToLegacy(bookingStatus),
+    });
+
+    await Room.findByIdAndUpdate(assignedRoomId, { status: "dipesan" });
     res.status(201).json({ data: created.toObject() });
   } catch (err) {
     if (err?.code === 11000) {

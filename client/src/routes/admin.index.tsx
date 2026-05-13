@@ -212,8 +212,8 @@ function Dashboard() {
               {(dash.data?.bookingTerbaru ?? []).map((b) => (
                 <tr key={b._id} className="hover:bg-secondary/40">
                   <td className="py-4 font-mono text-xs font-semibold">{b.kodeBooking}</td>
-                  <td className="py-4 font-medium">{b.tamuId?.nama ?? "-"}</td>
-                  <td className="py-4 text-muted-foreground">{b.roomTypeId?.namaTipe ?? "-"}</td>
+                  <td className="py-4 font-medium">{(b.tamuId as any)?.nama ?? "-"}</td>
+                  <td className="py-4 text-muted-foreground">{(b.roomTypeId as any)?.namaTipe ?? "-"}</td>
                   <td className="py-4 text-muted-foreground">{String(b.checkIn).slice(0, 10)}</td>
                   <td className="py-4 font-semibold">{formatRupiah(b.total ?? 0)}</td>
                   <td className="py-4">

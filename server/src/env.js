@@ -13,5 +13,5 @@ export const env = {
   MONGODB_URI: required("MONGODB_URI"),
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? "http://localhost:5173",
   NODE_ENV: process.env.NODE_ENV ?? "development",
+  JWT_SECRET: required("JWT_SECRET"),
 };
-

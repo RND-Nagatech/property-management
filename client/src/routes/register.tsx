@@ -1,6 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState, type InputHTMLAttributes } from "react";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { apiRequest } from "@/services/api";
+import { setAuthToken } from "@/services/auth";
 
 export const Route = createFileRoute("/register")({
   head: () => ({ meta: [{ title: "Daftar — Stayly" }] }),
@@ -11,6 +13,54 @@ const steps = ["Akun", "Identitas", "Alamat"];
 
 function Register() {
   const [step, setStep] = useState(0);
+  const navigate = useNavigate();
+  const search = Route.useSearch() as any;
+  const redirectTo = typeof search?.redirectTo === "string" && search.redirectTo ? search.redirectTo : "/";
+
+  const [form, setForm] = useState({
+    namaLengkap: "",
+    email: "",
+    noHp: "",
+    password: "",
+    confirmPassword: "",
+    nik: "",
+    alamat: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    setError("");
+    if (!form.namaLengkap || !form.email || !form.noHp || !form.password) {
+      setError("Mohon lengkapi data akun.");
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError("Konfirmasi password tidak sama.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await apiRequest<{ token: string; customer: any }>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          namaLengkap: form.namaLengkap,
+          email: form.email,
+          noHp: form.noHp,
+          password: form.password,
+          nik: form.nik,
+          alamat: form.alamat,
+        }),
+      });
+      setAuthToken(res.token);
+      navigate({ to: redirectTo });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal daftar");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-xl px-4 py-8">
@@ -47,16 +97,49 @@ function Register() {
         <div className="mt-8 rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
           {step === 0 && (
             <div className="space-y-4">
-              <Input label="Nama Lengkap" placeholder="Budi Santoso" />
-              <Input label="Email" type="email" placeholder="nama@email.com" />
-              <Input label="No. HP" placeholder="08xx xxxx xxxx" />
-              <Input label="Password" type="password" placeholder="Minimal 8 karakter" />
-              <Input label="Konfirmasi Password" type="password" placeholder="Ulangi password" />
+              <Input
+                label="Nama Lengkap"
+                placeholder="Budi Santoso"
+                value={form.namaLengkap}
+                onChange={(e) => setForm((p) => ({ ...p, namaLengkap: e.target.value }))}
+              />
+              <Input
+                label="Email"
+                type="email"
+                placeholder="nama@email.com"
+                value={form.email}
+                onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))}
+              />
+              <Input
+                label="No. HP"
+                placeholder="08xx xxxx xxxx"
+                value={form.noHp}
+                onChange={(e) => setForm((p) => ({ ...p, noHp: e.target.value }))}
+              />
+              <Input
+                label="Password"
+                type="password"
+                placeholder="Minimal 6 karakter"
+                value={form.password}
+                onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+              />
+              <Input
+                label="Konfirmasi Password"
+                type="password"
+                placeholder="Ulangi password"
+                value={form.confirmPassword}
+                onChange={(e) => setForm((p) => ({ ...p, confirmPassword: e.target.value }))}
+              />
             </div>
           )}
           {step === 1 && (
             <div className="space-y-4">
-              <Input label="NIK" placeholder="16 digit nomor KTP" />
+              <Input
+                label="NIK"
+                placeholder="16 digit nomor KTP"
+                value={form.nik}
+                onChange={(e) => setForm((p) => ({ ...p, nik: e.target.value }))}
+              />
               <div>
                 <label className="text-sm font-medium">Jenis Kelamin</label>
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -82,10 +165,14 @@ function Register() {
                   rows={4}
                   className="mt-1.5 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:border-accent focus:ring-2 focus:ring-accent/20 outline-none"
                   placeholder="Jalan, RT/RW, Kelurahan, Kecamatan, Kota"
+                  value={form.alamat}
+                  onChange={(e) => setForm((p) => ({ ...p, alamat: e.target.value }))}
                 />
               </div>
             </div>
           )}
+
+          {error && <div className="mt-4 text-sm text-destructive">{error}</div>}
 
           <div className="mt-6 flex items-center justify-between">
             <button
@@ -103,12 +190,13 @@ function Register() {
                 Lanjut <ArrowRight className="h-4 w-4" />
               </button>
             ) : (
-              <Link
-                to="/login"
-                className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground"
+              <button
+                onClick={submit}
+                disabled={submitting}
+                className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground disabled:opacity-50"
               >
-                Buat Akun
-              </Link>
+                {submitting ? "Memproses..." : "Buat Akun"}
+              </button>
             )}
           </div>
         </div>
@@ -127,7 +215,7 @@ function Register() {
 function Input({
   label,
   ...rest
-}: { label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+}: { label: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div>
       <label className="text-sm font-medium">{label}</label>

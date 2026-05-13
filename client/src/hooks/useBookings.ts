@@ -8,14 +8,18 @@ export type BookingStatus = "Menunggu" | "Dikonfirmasi" | "Check-in" | "Check-ou
 export type Booking = {
   _id: string;
   kodeBooking: string;
-  tamuId: Guest;
-  roomTypeId: RoomType;
-  roomId?: Room | null;
+  tamuId?: Guest | string | null;
+  customerId?: any;
+  guestSnapshot?: any;
+  roomTypeId: RoomType | string;
+  roomId?: Room | string | null;
   checkIn: string;
   checkOut: string;
   dewasa: number;
   anak: number;
   status: BookingStatus;
+  bookingStatus?: string;
+  paymentStatus?: string;
   total: number;
   catatan?: string;
 };
@@ -55,7 +59,7 @@ export function useBookingByCode(code: string) {
   return useQuery({
     queryKey: keys.bookingByCode(code),
     enabled: Boolean(code),
-    queryFn: () => apiRequest<Booking>(`/bookings/by-code/${encodeURIComponent(code)}`),
+    queryFn: () => apiRequest<Booking>(`/admin/bookings/by-code/${encodeURIComponent(code)}`),
   });
 }
 
@@ -84,7 +88,7 @@ export function useCheckInBooking() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiRequest<Booking>(`/bookings/${encodeURIComponent(id)}/check-in`, { method: "POST" }),
+      apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/check-in`, { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
   });
 }
@@ -93,7 +97,7 @@ export function useCheckOutBooking() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiRequest<Booking>(`/bookings/${encodeURIComponent(id)}/check-out`, { method: "POST" }),
+      apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/check-out`, { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
   });
 }

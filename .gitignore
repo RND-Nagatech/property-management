@@ -1,0 +1,18 @@
+.DS_Store
+
+# env
+**/.env
+**/.env.local
+
+# dependencies
+**/node_modules
+
+# builds
+**/dist
+**/.turbo
+**/.cache
+**/.vite
+
+# logs
+**/*.log
+

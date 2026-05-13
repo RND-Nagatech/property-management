@@ -1,0 +1,46 @@
+type ApiError = {
+  code?: string;
+  message?: string;
+};
+
+type ApiResponse<T> = { data: T } | { error: ApiError };
+
+function getBaseUrl() {
+  const envBase = import.meta.env.VITE_API_BASE_URL as string | undefined;
+  const base = envBase?.trim() ? envBase.trim() : "http://localhost:4000/api";
+  return base.replace(/\/+$/, "");
+}
+
+async function parseJsonSafe(response: Response) {
+  const text = await response.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const baseUrl = getBaseUrl();
+  const url = `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
+
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  const json = (await parseJsonSafe(response)) as ApiResponse<T> | null;
+
+  if (!response.ok) {
+    const errMsg =
+      (json && "error" in json && json.error?.message) || `Request gagal (${response.status})`;
+    throw new Error(errMsg);
+  }
+
+  if (!json || !("data" in json)) throw new Error("Response tidak valid");
+  return json.data;
+}

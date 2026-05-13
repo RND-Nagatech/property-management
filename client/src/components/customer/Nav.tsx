@@ -1,0 +1,75 @@
+import { Link, useRouterState } from "@tanstack/react-router";
+import { Home, BedDouble, Calendar, User } from "lucide-react";
+
+const items = [
+  { to: "/", label: "Beranda", icon: Home },
+  { to: "/kamar", label: "Kamar", icon: BedDouble },
+  { to: "/booking-saya", label: "Booking", icon: Calendar },
+  { to: "/login", label: "Akun", icon: User },
+];
+
+export function MobileNav() {
+  const path = useRouterState({ select: (s) => s.location.pathname });
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border glass md:hidden">
+      <ul className="grid grid-cols-4">
+        {items.map((it) => {
+          const active = path === it.to || (it.to !== "/" && path.startsWith(it.to));
+          const Icon = it.icon;
+          return (
+            <li key={it.to}>
+              <Link to={it.to} className="flex flex-col items-center gap-1 py-2.5">
+                <Icon className={`h-5 w-5 ${active ? "text-accent" : "text-muted-foreground"}`} />
+                <span
+                  className={`text-[11px] font-medium ${active ? "text-accent" : "text-muted-foreground"}`}
+                >
+                  {it.label}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+export function TopBar() {
+  return (
+    <header className="sticky top-0 z-30 glass border-b border-border">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
+            S
+          </div>
+          <span className="text-base font-bold tracking-tight">Stayly</span>
+        </Link>
+        <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
+          <Link to="/" className="hover:text-accent">
+            Beranda
+          </Link>
+          <Link to="/kamar" className="hover:text-accent">
+            Kamar
+          </Link>
+          <Link to="/booking-saya" className="hover:text-accent">
+            Booking Saya
+          </Link>
+          <Link to="/admin" className="hover:text-accent">
+            Admin
+          </Link>
+        </nav>
+        <div className="flex items-center gap-2">
+          <Link to="/login" className="hidden md:inline-flex text-sm font-medium hover:text-accent">
+            Masuk
+          </Link>
+          <Link
+            to="/register"
+            className="inline-flex items-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+          >
+            Daftar
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}

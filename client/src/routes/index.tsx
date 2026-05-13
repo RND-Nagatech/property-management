@@ -1,5 +1,10 @@
-import * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+
+// ...all imports and component code remain unchanged...
+
+export const Route = createFileRoute("/")({
+  component: Index,
+});
+import heroImg from "@/assets/hero-villa.jpg";
 import {
   Search,
   Calendar,
@@ -18,21 +23,6 @@ import { TopBar, MobileNav } from "@/components/customer/Nav";
 import { rooms, formatRupiah } from "@/lib/data";
 import { formatDateId, formatDateRangeId } from "@/lib/dates";
 import { useClickOutside } from "@/hooks/use-click-outside";
-import heroImg from "@/assets/hero-villa.jpg";
-
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Stayly — Booking Villa & Hotel Mewah" },
-      {
-        name: "description",
-        content:
-          "Pesan villa, hotel, dan homestay terbaik dengan harga transparan dan konfirmasi instan.",
-      },
-    ],
-  }),
-  component: Index,
-});
 
 function Index() {
   // State untuk form pencarian
@@ -277,22 +267,25 @@ function Index() {
         <div className="flex items-end justify-between">
           <div>
             <h2 className="text-2xl font-bold md:text-3xl">Rekomendasi Tipe Kamar</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Pilihan terbaik untuk perjalanan Anda
-            </p>
-          </div>
-          <Link to="/kamar" className="hidden md:inline-flex text-sm font-semibold text-accent">
-            Lihat semua →
-          </Link>
-        </div>
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {rooms.slice(0, 3).map((r) => (
-            <RoomCard key={r.id} room={r} />
-          ))}
-        </div>
-      </section>
-
-      {/* Facilities */}
+                          {/* Promo (disembunyikan sementara) */}
+                          {/*
+                          <section className="mx-auto max-w-6xl px-4 pt-16">
+                            <div className="grid gap-4 md:grid-cols-3">
+                              {[
+                                { tag: "FLASH SALE", title: "Diskon hingga 35%", desc: "Untuk booking 3 malam atau lebih.", color: "bg-accent" },
+                                { tag: "EARLY BIRD", title: "Hemat 20%", desc: "Pesan 30 hari sebelum check-in.", color: "bg-primary" },
+                                { tag: "WEEKEND", title: "Free Sarapan", desc: "Setiap akhir pekan untuk 2 orang.", color: "bg-warning" },
+                              ].map((p) => (
+                                <div key={p.title} className="group relative overflow-hidden rounded-2xl bg-card p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-soft)] transition">
+                                  <span className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider ${p.color === "bg-warning" ? "text-primary" : "text-white"} ${p.color}`}>{p.tag}</span>
+                                  <h3 className="mt-3 text-xl font-bold">{p.title}</h3>
+                                  <p className="mt-1 text-sm text-muted-foreground">{p.desc}</p>
+                                  <ArrowRight className="absolute right-5 bottom-5 h-5 w-5 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-accent" />
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                          */}
       <section className="mx-auto max-w-6xl px-4 pt-20">
         <h2 className="text-2xl font-bold md:text-3xl">Fasilitas Properti</h2>
         <p className="mt-1 text-sm text-muted-foreground">

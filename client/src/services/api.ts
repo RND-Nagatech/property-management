@@ -32,9 +32,11 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
 
   const response = await fetch(url, {
     ...init,
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Cache-Control": "no-cache",
       ...(init?.headers ?? {}),
     },
   });
@@ -47,8 +49,9 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     }
     const errMsg =
       (json && "error" in json && json.error?.message) || `Request gagal (${response.status})`;
-    const err = new Error(errMsg) as Error & { status?: number };
+    const err = new Error(errMsg) as Error & { status?: number; code?: string };
     err.status = response.status;
+    if (json && "error" in json && (json as any).error?.code) err.code = (json as any).error.code;
     throw err;
   }
 

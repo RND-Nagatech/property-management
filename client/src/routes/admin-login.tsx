@@ -3,7 +3,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import heroImg from "@/assets/hero-villa.jpg";
 import { apiRequest } from "@/services/api";
-import { isAdminLoggedIn, setAdminToken } from "@/services/admin-auth";
+import { clearAdminToken, getAdminToken, setAdminToken } from "@/services/admin-auth";
 
 export const Route = createFileRoute("/admin-login")({
   head: () => ({
@@ -13,11 +13,15 @@ export const Route = createFileRoute("/admin-login")({
 });
 
 function AdminLogin() {
-  // Jika sudah login admin, langsung redirect ke dashboard admin
+  // NOTE:
+  // Jangan auto-redirect berdasarkan token yang tersimpan.
+  // Token yang expired/invalid bisa menyebabkan loop /admin <-> /admin-login dan halaman berkedip.
+  // Redirect hanya dilakukan setelah login berhasil.
   useEffect(() => {
-    if (isAdminLoggedIn()) {
-      window.location.assign("/admin");
-    }
+    const token = getAdminToken().trim();
+    if (!token || token === "null" || token === "undefined") return;
+    // Jika token invalid, bersihkan agar user bisa login normal.
+    apiRequest("/admin/auth/me").catch(() => clearAdminToken());
   }, []);
   const navigate = useNavigate();
   const search = Route.useSearch() as any;
@@ -55,7 +59,7 @@ function AdminLogin() {
         throw new Error("Token login tidak valid");
       }
       setAdminToken(res.token);
-      window.location.assign("/admin");
+      window.location.assign("/admin/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal login admin");
     } finally {

@@ -24,6 +24,7 @@ import {
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminMe } from "@/hooks/useAdminMe";
 import { AdminMenu } from "@/components/admin/AdminMenu";
+import { clearAdminToken } from "@/services/admin-auth";
 
 type Item = { to: string; label: string; icon: React.ElementType };
 
@@ -79,16 +80,30 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const adminLoggedIn = useAdminAuth();
   const me = useAdminMe();
-  const adminLabel = useMemo(() => me.data?.nama || me.data?.username || "Admin", [me.data]);
+  const adminLabel = useMemo(() => (me.data as any)?.nama || (me.data as any)?.username || "Admin", [me.data]);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!adminLoggedIn) {
-      // Jika sudah di halaman login, jangan loop redirect
-      if (path.startsWith("/admin-login")) return;
-      navigate({ to: "/admin-login" });
-    }
-  }, [adminLoggedIn, navigate, path]);
+    setMounted(true);
+  }, []);
 
+  useEffect(() => {
+    if (!mounted) return;
+    if (!adminLoggedIn) {
+      // Keep admin vs customer clearly separated.
+      const redirectTo = path === "/admin" ? "/admin/" : path;
+      navigate({ to: "/admin-login", search: { redirectTo } as any, replace: true });
+    }
+  }, [adminLoggedIn, navigate, path, mounted]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    // If token is invalid/expired, backend returns 401 and we should logout to stop request loops.
+    const status = (me.error as any)?.status;
+    if (status === 401) clearAdminToken();
+  }, [me.error, mounted]);
+
+  if (!mounted) return null;
   if (!adminLoggedIn) return null;
 
   return (

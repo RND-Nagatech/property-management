@@ -44,7 +44,7 @@ export function AdminMenu({ label }: { label: string }) {
             onClick={() => {
               clearAdminToken();
               setOpen(false);
-              navigate({ to: "/admin-login" });
+              navigate({ to: "/admin-login", search: { redirectTo: "/admin/" } as any, replace: true });
             }}
             className="flex w-full items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-accent/10 rounded-xl transition"
           >
@@ -55,4 +55,3 @@ export function AdminMenu({ label }: { label: string }) {
     </div>
   );
 }
-

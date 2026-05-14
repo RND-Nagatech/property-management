@@ -53,9 +53,17 @@ async function main() {
 
   const app = express();
   app.disable("x-powered-by");
+  // API responses should not use ETag/304 caching (breaks our JSON-only client).
+  app.set("etag", false);
 
   app.use(morgan("dev"));
   app.use(express.json({ limit: "6mb" }));
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/")) {
+      res.setHeader("Cache-Control", "no-store");
+    }
+    next();
+  });
   app.use(
     cors({
       origin: (origin, cb) => {

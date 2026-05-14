@@ -4,6 +4,10 @@ import { Image as ImageIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSettings, useUpsertSetting } from "@/hooks/useSettings";
+import QRCodeLib from "qrcode";
+import { apiRequest } from "@/services/api";
+import { useNavigate } from "@tanstack/react-router";
+import { clearAdminToken } from "@/services/admin-auth";
 
 export const Route = createFileRoute("/admin/pengaturan")({
   head: () => ({ meta: [{ title: "Pengaturan" }] }),
@@ -11,6 +15,7 @@ export const Route = createFileRoute("/admin/pengaturan")({
 });
 
 function Pengaturan() {
+  const navigate = useNavigate();
   const settings = useSettings();
   const upsert = useUpsertSetting();
 
@@ -38,6 +43,65 @@ function Pengaturan() {
     logoDataUrl: "",
   });
 
+  const [waStatus, setWaStatus] = useState<{ status: string; qr?: string; me?: string; error?: string } | null>(null);
+  const [waQrDataUrl, setWaQrDataUrl] = useState<string>("");
+  const [waLoading, setWaLoading] = useState(false);
+
+  async function refreshWaStatus() {
+    try {
+      const st = await apiRequest<{ status: string; qr?: string; me?: string; error?: string }>("/admin/whatsapp/status");
+      setWaStatus(st);
+      if (st?.qr) {
+        const url = await QRCodeLib.toDataURL(st.qr, { margin: 1, width: 260 });
+        setWaQrDataUrl(url);
+      } else {
+        setWaQrDataUrl("");
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Gagal cek status WA";
+      const status = (e as any)?.status;
+      if (status === 401) {
+        toast.error("Sesi admin berakhir. Silakan login ulang.");
+        clearAdminToken();
+        window.location.assign("/admin-login");
+      }
+      setWaStatus({ status: "error", error: msg });
+      setWaQrDataUrl("");
+    }
+  }
+
+  async function connectWa() {
+    setWaLoading(true);
+    try {
+      const st = await apiRequest<{ status: string; qr?: string; me?: string; error?: string }>("/admin/whatsapp/connect", { method: "POST" });
+      setWaStatus(st);
+      if (st?.qr) {
+        const url = await QRCodeLib.toDataURL(st.qr, { margin: 1, width: 260 });
+        setWaQrDataUrl(url);
+      } else {
+        setWaQrDataUrl("");
+      }
+      toast.success("Silakan scan QR WhatsApp");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal memulai koneksi WhatsApp");
+    } finally {
+      setWaLoading(false);
+    }
+  }
+
+  async function disconnectWa() {
+    setWaLoading(true);
+    try {
+      await apiRequest("/admin/whatsapp/disconnect", { method: "POST" });
+      await refreshWaStatus();
+      toast.success("WhatsApp terputus");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal memutus WhatsApp");
+    } finally {
+      setWaLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!settings.data) return;
     setForm((prev) => ({
@@ -62,6 +126,12 @@ function Pengaturan() {
       logoDataUrl: (byKey.get("logoDataUrl") as string) ?? prev.logoDataUrl,
     }));
   }, [byKey, settings.data]);
+
+  useEffect(() => {
+    refreshWaStatus();
+    const t = window.setInterval(() => refreshWaStatus(), 2000);
+    return () => window.clearInterval(t);
+  }, []);
 
   async function onSave() {
     const facilities = form.propertyFacilities
@@ -233,6 +303,73 @@ function Pengaturan() {
             value={form.whatsappTemplate}
             onChange={(e) => setForm({ ...form, whatsappTemplate: e.target.value })}
           />
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base font-bold">Koneksi WhatsApp</h3>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Hubungkan WhatsApp (scan QR) untuk mengirim notifikasi pembayaran & invoice.
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={refreshWaStatus}
+              className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium"
+              disabled={waLoading}
+            >
+              Refresh
+            </button>
+            {waStatus?.status === "connected" ? (
+              <button
+                type="button"
+                onClick={disconnectWa}
+                className="rounded-xl bg-destructive/10 px-4 py-2.5 text-sm font-semibold text-destructive"
+                disabled={waLoading}
+              >
+                Disconnect
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={connectWa}
+                className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
+                disabled={waLoading}
+              >
+                Connect
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-[280px_1fr] items-start">
+          <div className="rounded-2xl border border-border bg-secondary/30 p-4">
+            <div className="text-xs font-semibold text-muted-foreground">Status</div>
+            <div className="mt-1 text-sm font-bold">
+              {waStatus?.status ? waStatus.status.toUpperCase() : "UNKNOWN"}
+            </div>
+            {waStatus?.error && <div className="mt-2 text-xs text-destructive">{waStatus.error}</div>}
+            {waQrDataUrl ? (
+              <img src={waQrDataUrl} alt="QR WhatsApp" className="mt-4 w-full rounded-xl bg-white p-3" />
+            ) : (
+              <div className="mt-4 text-xs text-muted-foreground">
+                {waStatus?.status === "connected"
+                  ? "WhatsApp sudah terhubung."
+                  : "Klik Connect untuk menampilkan QR."}
+              </div>
+            )}
+          </div>
+          <div className="text-sm text-muted-foreground">
+            <div className="font-semibold text-foreground">Cara konek:</div>
+            <ol className="mt-2 list-decimal pl-5 space-y-1">
+              <li>Buka WhatsApp di HP</li>
+              <li>Menu titik tiga → Perangkat tertaut (Linked devices)</li>
+              <li>Klik “Tautkan perangkat” lalu scan QR di sini</li>
+            </ol>
+          </div>
         </div>
       </div>
 

@@ -22,6 +22,7 @@ import { dashboardRouter } from "./routes/dashboard.js";
 import { reportsRouter } from "./routes/reports.js";
 import { authRouter } from "./routes/auth.js";
 import { adminPaymentsRouter } from "./routes/admin-payments.js";
+import { adminWhatsappRouter } from "./routes/admin-whatsapp.js";
 import { adminBookingsRouter } from "./routes/admin-bookings.js";
 import { adminAuthRouter } from "./routes/admin-auth.js";
 import { adminUsersRouter } from "./routes/admin-users.js";
@@ -90,6 +91,7 @@ async function main() {
   app.use("/api/admin/auth", adminAuthRouter);
   app.use("/api/admin/users", adminUsersRouter);
   app.use("/api/admin/payments", adminPaymentsRouter);
+  app.use("/api/admin/whatsapp", adminWhatsappRouter);
   app.use("/api/admin/bookings", adminBookingsRouter);
   app.use("/api/availability", availabilityRouter);
   app.use("/api/invoices", invoicesRouter);

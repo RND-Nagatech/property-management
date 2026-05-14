@@ -42,6 +42,7 @@ export function useUpdatePayment() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["admin", "payments", "pending-count"] });
       qc.invalidateQueries({ queryKey: ["bookings"] });
       qc.invalidateQueries({ queryKey: ["rooms"] });
       qc.invalidateQueries({ queryKey: ["deposits"] });

@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { Payment } from "../models/Payment.js";
 import { Booking } from "../models/Booking.js";
 import { requireAuth } from "../auth.js";
+import { waSendText } from "../utils/wa-web.js";
+import { waPaymentSubmitted } from "../utils/wa-templates.js";
 
 export const paymentsRouter = express.Router();
 
@@ -67,6 +69,28 @@ paymentsRouter.post("/", requireAuth, async (req, res, next) => {
     booking.bookingStatus = "waiting_confirmation";
     booking.status = "Menunggu";
     await booking.save();
+
+    // WhatsApp: konfirmasi bukti pembayaran diterima (bukan invoice final)
+    try {
+      const toPhone = String(booking.guestSnapshot?.noHp ?? "").trim();
+      if (toPhone && !created.paymentSubmittedEmailSent) {
+        const text = waPaymentSubmitted({
+          customerName: booking.guestSnapshot?.namaLengkap ?? "",
+          bookingCode: booking.kodeBooking,
+          totalAmount: created.jumlah,
+          checkIn: booking.checkIn,
+          checkOut: booking.checkOut,
+        });
+        const sent = await waSendText({ to: toPhone, text });
+        if (sent.ok) {
+          created.paymentSubmittedEmailSent = true;
+          created.paymentSubmittedEmailSentAt = new Date();
+          await created.save();
+        }
+      }
+    } catch {
+      // Non-fatal: payment tetap sukses walau email gagal.
+    }
 
     res.status(201).json({ data: created.toObject() });
   } catch (err) {

@@ -50,8 +50,9 @@ function Index() {
     return `${y}-${m}-${day}`;
   }, []);
 
-  const [checkin, setCheckin] = React.useState(todayYmd);
-  const [checkout, setCheckout] = React.useState(tomorrowYmd);
+  // Default harus kosong; user pilih sendiri (agar tidak membatasi hanya 2 hari).
+  const [checkin, setCheckin] = React.useState("");
+  const [checkout, setCheckout] = React.useState("");
   const [showDatePicker, setShowDatePicker] = React.useState(false);
   // State untuk tamu/kamar
   const [adults, setAdults] = React.useState(2);
@@ -63,6 +64,28 @@ function Index() {
   const guestRef = React.useRef<HTMLDivElement | null>(null);
   useClickOutside([dateRef], () => setShowDatePicker(false), showDatePicker);
   useClickOutside([guestRef], () => setShowGuestPopover(false), showGuestPopover);
+  const [calMonth, setCalMonth] = React.useState(() => new Date());
+
+  function toYmdLocal(d: Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function addDaysYmd(ymd: string, days: number) {
+    const [y, m, d] = ymd.split("-").map((n) => Number(n));
+    const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+    dt.setDate(dt.getDate() + days);
+    return toYmdLocal(dt);
+  }
+
+  function dateRangeLabel() {
+    if (!checkin && !checkout) return "Pilih tanggal";
+    if (checkin && !checkout) return `${formatDateId(checkin)} - Pilih tanggal`;
+    if (!checkin && checkout) return `Pilih tanggal - ${formatDateId(checkout)}`;
+    return `${formatDateId(checkin)} - ${formatDateId(checkout)}`;
+  }
 
   const roomTypes = useRoomTypes(false);
   const settings = useSettings();
@@ -131,42 +154,116 @@ function Index() {
                   onClick={() => setShowDatePicker((v) => !v)}
                 >
                   <Calendar className="h-4 w-4 text-accent" />
-                  <span className="font-medium">{formatDateRangeId(checkin, checkout)}</span>
+                  <span className="font-medium">{dateRangeLabel()}</span>
                 </button>
                 {showDatePicker && (
                   <div className="absolute left-0 mt-2 z-30 w-[320px] rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in">
                     <div className="font-bold mb-2 text-base">Tanggal Menginap</div>
-                    <div className="flex gap-3 mb-3">
-                      <div>
-                        <div className="text-xs text-muted-foreground mb-1">Check-In</div>
-                        <input
-                          type="date"
-                          value={checkin}
-                          min={new Date().toISOString().slice(0, 10)}
-                          max={checkout}
-                          onChange={(e) => setCheckin(e.target.value)}
-                          className="rounded-xl border border-input bg-background px-2 py-1 text-sm focus:border-accent outline-none"
-                        />
-                        <div className="text-xs mt-1 font-semibold">{formatDateId(checkin)}</div>
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                        onClick={() => setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+                      >
+                        Prev
+                      </button>
+                      <div className="text-xs font-semibold text-muted-foreground">
+                        {calMonth.toLocaleString("id-ID", { month: "long", year: "numeric" })}
                       </div>
-                      <div>
-                        <div className="text-xs text-muted-foreground mb-1">Check-Out</div>
-                        <input
-                          type="date"
-                          value={checkout}
-                          min={checkin}
-                          onChange={(e) => setCheckout(e.target.value)}
-                          className="rounded-xl border border-input bg-background px-2 py-1 text-sm focus:border-accent outline-none"
-                        />
-                        <div className="text-xs mt-1 font-semibold">{formatDateId(checkout)}</div>
-                      </div>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                        onClick={() => setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+                      >
+                        Next
+                      </button>
                     </div>
+
+                    <div className="mt-3 grid grid-cols-7 gap-1 text-[10px]">
+                      {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d) => (
+                        <div key={d} className="pb-1 text-center font-bold text-muted-foreground">
+                          {d}
+                        </div>
+                      ))}
+                      {(() => {
+                        const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+                        const startDow = first.getDay(); // 0=Sun
+                        const daysInMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+
+                        const cells: Array<number | null> = [];
+                        for (let i = 0; i < startDow; i++) cells.push(null);
+                        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                        while (cells.length < 42) cells.push(null);
+
+                        return cells.map((day, idx) => {
+                          if (!day) return <div key={idx} className="aspect-square rounded-md" />;
+                          const ymd = toYmdLocal(new Date(calMonth.getFullYear(), calMonth.getMonth(), day));
+                          const isPast = ymd < todayYmd;
+                          const disabled = isPast;
+                          const isSelected = Boolean(checkin && checkout) && ymd >= checkin && ymd <= checkout;
+                          const isStart = ymd === checkin;
+                          const isEnd = ymd === checkout;
+
+                          const base = "bg-secondary/40 text-muted-foreground";
+                          const selectedCls = isSelected ? "bg-primary text-primary-foreground" : base;
+
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => {
+                                if (disabled) return;
+                                // klik pertama = check-in; klik kedua = check-out; klik lagi = mulai ulang.
+                                if (!checkin || (checkin && checkout)) {
+                                  setCheckin(ymd);
+                                  setCheckout("");
+                                  return;
+                                }
+                                if (ymd <= checkin) {
+                                  setCheckin(ymd);
+                                  setCheckout("");
+                                  return;
+                                }
+                                setCheckout(ymd);
+                              }}
+                              className={`aspect-square rounded-md border border-border px-0.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${selectedCls} ${
+                                isStart || isEnd ? "ring-2 ring-primary/30" : ""
+                              }`}
+                            >
+                              {day}
+                            </button>
+                          );
+                        });
+                      })()}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded bg-primary ring-1 ring-primary/40" /> Dipilih
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="h-2.5 w-2.5 rounded bg-secondary/40 ring-1 ring-border" /> Tersedia
+                      </span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        className="w-full rounded-xl border border-border py-2 text-sm font-semibold"
+                        onClick={() => {
+                          setCheckin("");
+                          setCheckout("");
+                        }}
+                      >
+                        Reset Tanggal
+                      </button>
                     <button
                       className="w-full rounded-xl bg-accent py-2 text-sm font-semibold text-accent-foreground mt-2"
                       onClick={() => setShowDatePicker(false)}
                     >
                       Selesai
                     </button>
+                    </div>
                   </div>
                 )}
               </div>

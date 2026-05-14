@@ -2,6 +2,7 @@ import express from "express";
 import mongoose from "mongoose";
 import { Booking } from "../models/Booking.js";
 import { Room } from "../models/Room.js";
+import { Payment } from "../models/Payment.js";
 import { requireAdminAuth } from "../auth.js";
 
 export const adminBookingsRouter = express.Router();
@@ -41,7 +42,13 @@ adminBookingsRouter.get("/by-code/:bookingCode", async (req, res, next) => {
       .select("-__v")
       .lean();
     if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
-    res.json({ data: booking });
+
+    const payment = await Payment.findOne({ bookingId: booking._id })
+      .sort({ createdAt: -1 })
+      .select({ _id: 1, invoice: 1, metode: 1, jumlah: 1, status: 1, proofImage: 1, createdAt: 1, verifiedAt: 1 })
+      .lean();
+
+    res.json({ data: { ...booking, payment: payment ?? null } });
   } catch (err) {
     next(err);
   }

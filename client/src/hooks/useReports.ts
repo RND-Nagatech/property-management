@@ -16,6 +16,24 @@ export type FinanceReport = {
     totalBooking: number;
     pendapatan: number;
   }>;
+  payments?: Array<{
+    _id: string;
+    createdAt: string;
+    invoice: string;
+    metode: string;
+    jumlah: number;
+    status: string;
+    bookingId: string;
+    kodeBooking?: string;
+  }>;
+  expenses?: Array<{
+    _id: string;
+    tanggal: string;
+    kategori: string;
+    deskripsi: string;
+    jumlah: number;
+    metode?: string;
+  }>;
 };
 
 export type BookingReport = {
@@ -25,6 +43,18 @@ export type BookingReport = {
   byStatus: Record<string, number>;
   avgLengthNights: number;
   trend30: Array<{ day: string; total: number }>;
+  bookings?: Array<{
+    _id: string;
+    createdAt: string;
+    kodeBooking: string;
+    guestName?: string;
+    roomTypeName?: string;
+    checkIn: string;
+    checkOut: string;
+    bookingStatus: string;
+    paymentStatus: string;
+    total: number;
+  }>;
 };
 
 export function useFinanceReport(month?: string) {

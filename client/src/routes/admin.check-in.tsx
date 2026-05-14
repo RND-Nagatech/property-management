@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useBookingByCode, useCheckInBooking, useUpdateBooking } from "@/hooks/useBookings";
 import { useRooms } from "@/hooks/useRooms";
+import { formatRupiah } from "@/lib/currency";
 
 export const Route = createFileRoute("/admin/check-in")({
   head: () => ({ meta: [{ title: "Check-in" }] }),
@@ -255,6 +256,33 @@ function CheckInPage() {
                 <div className="mt-1 text-xs text-muted-foreground">
                   {String(booking.data.checkIn).slice(0, 10)} →{" "}
                   {String(booking.data.checkOut).slice(0, 10)} · {booking.data.dewasa} tamu
+                </div>
+
+                <div className="mt-4 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Total dibayar</span>
+                    <span className="font-semibold">{formatRupiah(booking.data.total ?? 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Metode pembayaran</span>
+                    <span className="font-semibold">
+                      {(booking.data as any)?.payment?.metode ?? "-"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Status pembayaran</span>
+                    <span className="font-semibold">
+                      {(booking.data as any)?.payment?.status ?? booking.data.paymentStatus ?? "-"}
+                    </span>
+                  </div>
+                  {(booking.data as any)?.payment?.invoice && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Invoice</span>
+                      <span className="font-mono font-bold">
+                        {(booking.data as any)?.payment?.invoice}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {!(booking.data.roomId as any)?._id && (

@@ -8,6 +8,7 @@ import { apiRequest } from "@/services/api";
 import { Calendar, QrCode, FileText, ChevronRight, X } from "lucide-react";
 import { isLoggedIn } from "@/services/auth";
 import { resolveMediaUrl } from "@/lib/media";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/booking-saya")({
   head: () => ({ meta: [{ title: "Booking Saya — Stayly" }] }),
@@ -114,6 +115,8 @@ function MyBookings() {
             const bs = String(b.bookingStatus ?? "");
             const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${b._id}`;
             const canCancel = bs === "pending_payment" || bs === "waiting_confirmation";
+            const paymentStatus = String(b.paymentStatus ?? "");
+            const canAccessProof = paymentStatus === "paid";
             return (
               <div key={b._id} className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
                 <div className="flex gap-4">
@@ -161,11 +164,15 @@ function MyBookings() {
                             type="button"
                             disabled={cancelBooking.isPending}
                             onClick={() => {
-                              const ok = window.confirm(
-                                "Batalkan booking ini? Booking yang dibatalkan tidak bisa dipulihkan."
-                              );
-                              if (!ok) return;
-                              cancelBooking.mutate(b._id);
+                              toast("Batalkan booking ini?", {
+                                description:
+                                  "Booking yang dibatalkan tidak bisa dipulihkan.",
+                                action: {
+                                  label: "Batalkan",
+                                  onClick: () => cancelBooking.mutate(b._id),
+                                },
+                                cancel: { label: "Tutup" } as any,
+                              });
                             }}
                             className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold"
                             title="Batalkan booking"
@@ -182,19 +189,46 @@ function MyBookings() {
                             Beri Testimoni <ChevronRight className="h-3 w-3" />
                           </Link>
                         )}
-                        <Link
-                          to="/booking-berhasil/$id"
-                          params={{ id: b._id }}
-                          className="rounded-lg border border-border p-2"
-                        >
-                          <QrCode className="h-4 w-4" />
-                        </Link>
+                        {canAccessProof ? (
+                          <Link
+                            to="/booking-berhasil/$id"
+                            params={{ id: b._id }}
+                            className="rounded-lg border border-border p-2"
+                            title="Lihat QR Booking"
+                          >
+                            <QrCode className="h-4 w-4" />
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              toast.error(
+                                paymentStatus === "waiting_confirmation"
+                                  ? "Pembayaran masih dalam proses verifikasi."
+                                  : "Selesaikan pembayaran terlebih dahulu."
+                              )
+                            }
+                            className="rounded-lg border border-border p-2 opacity-60"
+                            title="Belum bisa diakses"
+                          >
+                            <QrCode className="h-4 w-4" />
+                          </button>
+                        )}
                         <a
-                          href={invoiceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-lg border border-border p-2 inline-flex"
-                          title="Download Invoice"
+                          href={canAccessProof ? invoiceUrl : undefined}
+                          target={canAccessProof ? "_blank" : undefined}
+                          rel={canAccessProof ? "noreferrer" : undefined}
+                          onClick={(e) => {
+                            if (canAccessProof) return;
+                            e.preventDefault();
+                            toast.error(
+                              paymentStatus === "waiting_confirmation"
+                                ? "Pembayaran masih dalam proses verifikasi."
+                                : "Selesaikan pembayaran terlebih dahulu."
+                            );
+                          }}
+                          className={`rounded-lg border border-border p-2 inline-flex ${canAccessProof ? "" : "opacity-60"}`}
+                          title={canAccessProof ? "Download Invoice" : "Belum bisa diakses"}
                         >
                           <FileText className="h-4 w-4" />
                         </a>

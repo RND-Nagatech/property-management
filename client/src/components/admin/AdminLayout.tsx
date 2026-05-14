@@ -25,6 +25,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminMe } from "@/hooks/useAdminMe";
 import { AdminMenu } from "@/components/admin/AdminMenu";
 import { clearAdminToken } from "@/services/admin-auth";
+import { usePendingPaymentsCount } from "@/hooks/usePendingPaymentsCount";
 
 type Item = { to: string; label: string; icon: React.ElementType };
 
@@ -80,6 +81,8 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const adminLoggedIn = useAdminAuth();
   const me = useAdminMe();
+  const pending = usePendingPaymentsCount();
+  const pendingCount = pending.data?.count ?? 0;
   const adminLabel = useMemo(() => (me.data as any)?.nama || (me.data as any)?.username || "Admin", [me.data]);
   const [mounted, setMounted] = useState(false);
 
@@ -134,24 +137,29 @@ export function AdminLayout() {
                   {g.title}
                 </div>
               )}
-              <ul className="space-y-0.5">
-                {g.items.map((it) => {
-                  const active = path === it.to;
-                  const Icon = it.icon;
-                  return (
-                    <li key={it.to}>
-                      <Link
+	              <ul className="space-y-0.5">
+	                {g.items.map((it) => {
+	                  const active = path === it.to;
+	                  const Icon = it.icon;
+	                  return (
+	                    <li key={it.to}>
+	                      <Link
                         to={it.to}
                         onClick={() => setOpen(false)}
-                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-accent text-accent-foreground" : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-white"}`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {it.label}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+	                        className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-accent text-accent-foreground" : "text-sidebar-foreground/85 hover:bg-sidebar-accent hover:text-white"}`}
+	                      >
+	                        <Icon className="h-4 w-4" />
+	                        <span className="flex-1">{it.label}</span>
+	                        {it.to === "/admin/pembayaran" && pendingCount > 0 && (
+	                          <span className="min-w-[22px] rounded-full bg-accent text-accent-foreground px-2 py-0.5 text-[11px] font-bold text-center">
+	                            {pendingCount > 99 ? "99+" : pendingCount}
+	                          </span>
+	                        )}
+	                      </Link>
+	                    </li>
+	                  );
+	                })}
+	              </ul>
             </div>
           ))}
         </nav>
@@ -175,15 +183,23 @@ export function AdminLayout() {
                 className="w-full rounded-xl border border-border bg-background pl-10 pr-4 py-2.5 text-sm outline-none focus:border-accent"
               />
             </div>
-            <div className="ml-auto flex items-center gap-2">
-              <button className="relative rounded-xl border border-border p-2.5">
-                <Bell className="h-4 w-4" />
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
-              </button>
-              <AdminMenu label={adminLabel} />
-            </div>
-          </div>
-        </header>
+	            <div className="ml-auto flex items-center gap-2">
+	              <Link
+	                to="/admin/pembayaran"
+	                className="relative rounded-xl border border-border p-2.5"
+	                title="Pembayaran menunggu verifikasi"
+	              >
+	                <Bell className="h-4 w-4" />
+	                {pendingCount > 0 && (
+	                  <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-accent-foreground">
+	                    {pendingCount > 99 ? "99+" : pendingCount}
+	                  </span>
+	                )}
+	              </Link>
+	              <AdminMenu label={adminLabel} />
+	            </div>
+	          </div>
+	        </header>
 
         <main className="p-4 md:p-6 lg:p-8">
           <Outlet />

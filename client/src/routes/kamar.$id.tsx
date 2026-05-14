@@ -81,17 +81,10 @@ function RoomDetailContent({ room }: { room: any }) {
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   }, []);
-  const tomorrowYmd = React.useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  }, []);
 
-  const [checkin, setCheckin] = React.useState(() => searchState.checkin ?? todayYmd);
-  const [checkout, setCheckout] = React.useState(() => searchState.checkout ?? tomorrowYmd);
+  // Default tanggal harus kosong (user pilih sendiri).
+  const [checkin, setCheckin] = React.useState(() => searchState.checkin ?? "");
+  const [checkout, setCheckout] = React.useState(() => searchState.checkout ?? "");
   const [showDatePicker, setShowDatePicker] = React.useState(false);
   const [adults, setAdults] = React.useState(() => searchState.adults ?? 2);
   const [children, setChildren] = React.useState(() => searchState.children ?? 0);
@@ -142,11 +135,13 @@ function RoomDetailContent({ room }: { room: any }) {
   }
 
   function inRange(ymd: string, start: string, end: string) {
+    if (!start || !end) return false;
     return ymd >= start && ymd <= end;
   }
 
   function rangeHasFullBooked(start: string, end: string) {
     // booking counts for nights: [start, end) ; we disallow FULL_BOOKED dates inside start..(end-1)
+    if (!start || !end) return "";
     let d = start;
     while (d < end) {
       if (availabilityMap[d]?.status === "FULL_BOOKED") return d;
@@ -275,7 +270,7 @@ function RoomDetailContent({ room }: { room: any }) {
                     className="text-sm font-semibold w-full text-left"
                     onClick={() => setShowDatePicker((v) => !v)}
                   >
-                    {formatDateId(checkin)}
+                    {checkin ? formatDateId(checkin) : "Pilih tanggal"}
                   </button>
                   {showDatePicker && (
                     <div className="absolute left-1/2 -translate-x-1/2 top-12 z-30 w-[320px] rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in">
@@ -335,7 +330,7 @@ function RoomDetailContent({ room }: { room: any }) {
                             const st = availabilityMap[ymd]?.status;
                             const isPast = ymd < todayYmd;
                             const isFull = st === "FULL_BOOKED";
-                            const isSelected = inRange(ymd, checkin, checkout);
+                            const isSelected = Boolean(checkin && checkout) && inRange(ymd, checkin, checkout);
                             const isStart = ymd === checkin;
                             const isEnd = ymd === checkout;
 
@@ -354,43 +349,52 @@ function RoomDetailContent({ room }: { room: any }) {
 
                             const disabled = isPast || isFull;
 
-                            return (
-                              <button
-                                key={idx}
-                                type="button"
-                                disabled={disabled}
-                                onClick={() => {
-                                  setCalError("");
-                                  if (disabled) return;
-                                  // Select start/end range
-                                  if (!checkin || (checkin && checkout && ymd <= checkin)) {
-                                    setCheckin(ymd);
-                                    setCheckout(addDaysYmd(ymd, 1));
-                                    return;
-                                  }
-                                  if (ymd > checkin) {
-                                    const nextCheckout = ymd;
-                                    const bad = rangeHasFullBooked(checkin, nextCheckout);
-                                    if (bad) {
-                                      setCalError(`Tanggal ${bad} FULL BOOKED. Rentang tidak boleh melewati tanggal tersebut.`);
-                                      return;
-                                    }
-                                    setCheckout(nextCheckout);
-                                  }
-                                }}
-                                className={`aspect-square rounded-md border border-border px-0.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                                  selectedCls
-                                } ${isStart || isEnd ? "ring-2 ring-primary/30" : ""}`}
-                                title={
-                                  isFull
-                                    ? "FULL BOOKED"
-                                    : availabilityMap[ymd]
-                                      ? `${availabilityMap[ymd].available} tersedia`
-                                      : ""
-                                }
-                              >
-                                {day}
-                              </button>
+	                            return (
+	                              <button
+	                                key={idx}
+	                                type="button"
+	                                disabled={disabled}
+	                                onClick={() => {
+	                                  setCalError("");
+	                                  if (disabled) return;
+	                                  // Range picker: klik pertama = check-in, klik kedua = check-out.
+	                                  // Jika range sudah terisi dan user klik tanggal lagi, mulai ulang dari check-in.
+	                                  if (!checkin || (checkin && checkout)) {
+	                                    setCheckin(ymd);
+	                                    setCheckout("");
+	                                    return;
+	                                  }
+
+	                                  // Saat memilih check-out, pastikan selalu > check-in.
+	                                  if (ymd <= checkin) {
+	                                    setCheckin(ymd);
+	                                    setCheckout("");
+	                                    return;
+	                                  }
+
+	                                  const nextCheckout = ymd;
+	                                  const bad = rangeHasFullBooked(checkin, nextCheckout);
+	                                  if (bad) {
+	                                    setCalError(
+	                                      `Tanggal ${bad} FULL BOOKED. Rentang tidak boleh melewati tanggal tersebut.`
+	                                    );
+	                                    return;
+	                                  }
+	                                  setCheckout(nextCheckout);
+	                                }}
+	                                className={`aspect-square rounded-md border border-border px-0.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+	                                  selectedCls
+	                                } ${isStart || isEnd ? "ring-2 ring-primary/30" : ""}`}
+	                                title={
+	                                  isFull
+	                                    ? "FULL BOOKED"
+	                                    : availabilityMap[ymd]
+	                                      ? `${availabilityMap[ymd].booked} dipesan, ${availabilityMap[ymd].available} tersedia`
+	                                      : ""
+	                                }
+	                              >
+	                                {day}
+	                              </button>
                             );
                           });
                         })()}
@@ -399,28 +403,61 @@ function RoomDetailContent({ room }: { room: any }) {
                       {availability.isLoading && (
                         <div className="text-xs text-muted-foreground">Memuat ketersediaan...</div>
                       )}
-                      {availability.isError && (
-                        <div className="text-xs text-destructive">
-                          {availability.error instanceof Error
-                            ? availability.error.message
-                            : "Gagal memuat ketersediaan"}
-                        </div>
-                      )}
-                      {calError && <div className="text-xs text-destructive mt-2">{calError}</div>}
-                      <button
-                        className="w-full rounded-xl bg-accent py-2 text-sm font-semibold text-accent-foreground mt-2"
-                        onClick={() => setShowDatePicker(false)}
-                      >
-                        Selesai
-                      </button>
-                    </div>
-                  )}
-                </div>
+	                      {availability.isError && (
+	                        <div className="text-xs text-destructive">
+	                          {availability.error instanceof Error
+	                            ? availability.error.message
+	                            : "Gagal memuat ketersediaan"}
+	                        </div>
+	                      )}
+	                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+	                        <span className="inline-flex items-center gap-1">
+	                          <span className="h-2.5 w-2.5 rounded bg-success/30 ring-1 ring-success/40" />{" "}
+	                          Tersedia
+	                        </span>
+	                        <span className="inline-flex items-center gap-1">
+	                          <span className="h-2.5 w-2.5 rounded bg-warning/30 ring-1 ring-warning/40" />{" "}
+	                          Sebagian dipesan
+	                        </span>
+	                        <span className="inline-flex items-center gap-1">
+	                          <span className="h-2.5 w-2.5 rounded bg-destructive/25 ring-1 ring-destructive/30" />{" "}
+	                          FULL BOOKED
+	                        </span>
+	                        <span className="inline-flex items-center gap-1">
+	                          <span className="h-2.5 w-2.5 rounded bg-primary ring-1 ring-primary/40" />{" "}
+	                          Dipilih
+	                        </span>
+	                      </div>
+	                      {calError && <div className="text-xs text-destructive mt-2">{calError}</div>}
+	                      <div className="mt-3 grid grid-cols-2 gap-2">
+	                        <button
+	                          type="button"
+	                          className="w-full rounded-xl border border-border py-2 text-sm font-semibold"
+	                          onClick={() => {
+	                            setCalError("");
+	                            setCheckin("");
+	                            setCheckout("");
+	                          }}
+	                        >
+	                          Reset Tanggal
+	                        </button>
+	                      <button
+	                        className="w-full rounded-xl bg-accent py-2 text-sm font-semibold text-accent-foreground mt-2"
+	                        onClick={() => setShowDatePicker(false)}
+	                      >
+	                        Selesai
+	                      </button>
+	                      </div>
+	                    </div>
+	                  )}
+	                </div>
                 <div className="rounded-lg p-2 border-l border-border">
                   <div className="text-[10px] font-bold uppercase text-muted-foreground">
                     Check-out
                   </div>
-                  <span className="text-sm font-semibold">{formatDateId(checkout)}</span>
+                  <span className="text-sm font-semibold">
+                    {checkout ? formatDateId(checkout) : "Pilih tanggal"}
+                  </span>
                 </div>
               </div>
               {/* Guest popover mirip landing page */}
@@ -502,6 +539,10 @@ function RoomDetailContent({ room }: { room: any }) {
               <button
                 type="button"
                 onClick={() => {
+                  if (!checkin || !checkout) {
+                    setShowDatePicker(true);
+                    return;
+                  }
                   const next = `/booking/${room.slug}`;
                   if (!isLoggedIn()) {
                     navigate({ to: "/login", search: { redirectTo: next } as any });
@@ -535,6 +576,10 @@ function RoomDetailContent({ room }: { room: any }) {
           <button
             type="button"
             onClick={() => {
+              if (!checkin || !checkout) {
+                setShowDatePicker(true);
+                return;
+              }
               const next = `/booking/${room.slug}`;
               if (!isLoggedIn()) {
                 navigate({ to: "/login", search: { redirectTo: next } as any });

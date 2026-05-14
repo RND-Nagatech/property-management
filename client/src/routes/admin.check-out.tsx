@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useBookingByCode, useCheckOutBooking } from "@/hooks/useBookings";
 import { ArrowRight } from "lucide-react";
 import { useCreateDeposit, useDepositByBooking, useUpdateDeposit } from "@/hooks/useDeposits";
+import { diffNights } from "@/lib/dates";
 
 export const Route = createFileRoute("/admin/check-out")({
   head: () => ({ meta: [{ title: "Check-out" }] }),
@@ -127,14 +128,24 @@ function CheckOut() {
             )}
 
             <div className="mt-5 space-y-3 text-sm">
-              <Row label="Subtotal kamar (3 malam)" value={formatRupiah(2550000)} />
-              <Row label="Pajak & layanan" value={formatRupiah(255000)} />
-              <Row label="Mini bar" value={formatRupiah(85000)} />
+              <Row
+                label={`Subtotal kamar (${booking.data ? diffNights(String(booking.data.checkIn).slice(0, 10), String(booking.data.checkOut).slice(0, 10)) : 0} malam)`}
+                value={formatRupiah(
+                  booking.data
+                    ? (diffNights(String(booking.data.checkIn).slice(0, 10), String(booking.data.checkOut).slice(0, 10)) *
+                        Number((booking.data.roomTypeId as any)?.hargaDefault ?? 0))
+                    : 0,
+                )}
+              />
               <Row
                 label="Deposit ditahan"
                 value={formatRupiah(
                   (booking.data?.roomTypeId as any)?.depositDefault ?? deposit.data?.jumlah ?? 0,
                 )}
+              />
+              <Row
+                label="Total"
+                value={formatRupiah(booking.data?.total ?? 0)}
               />
             </div>
           </div>

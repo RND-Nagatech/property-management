@@ -7,6 +7,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useGuests } from "@/hooks/useGuests";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
+import { formatDateId } from "@/lib/dates";
 import {
   useBookings,
   useAdminCancelBooking,
@@ -53,7 +54,6 @@ function BookingPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Booking | null>(null);
   const [form, setForm] = useState({
-    kodeBooking: "",
     tamuId: "",
     roomTypeId: "",
     checkIn: new Date().toISOString().slice(0, 10),
@@ -61,6 +61,15 @@ function BookingPage() {
     status: "Menunggu" as BookingStatus,
     total: "",
   });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calMonth, setCalMonth] = useState(() => new Date());
+
+  function toYmdLocal(d: Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
 
   const guestOptions = useMemo(
     () => (guests.data ?? []).map((g) => ({ value: g._id, label: `${g.nama} (${g.email})` })),
@@ -74,7 +83,6 @@ function BookingPage() {
   function openAdd() {
     setEditing(null);
     setForm({
-      kodeBooking: "",
       tamuId: guestOptions[0]?.value ?? "",
       roomTypeId: roomTypeOptions[0]?.value ?? "",
       checkIn: new Date().toISOString().slice(0, 10),
@@ -88,7 +96,6 @@ function BookingPage() {
   function openEdit(b: Booking) {
     setEditing(b);
     setForm({
-      kodeBooking: b.kodeBooking,
       tamuId: (b.tamuId as any)?._id ?? "",
       roomTypeId: (b.roomTypeId as any)?._id ?? "",
       checkIn: String(b.checkIn).slice(0, 10),
@@ -101,17 +108,17 @@ function BookingPage() {
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
-    if (!form.kodeBooking || !form.tamuId || !form.roomTypeId || !form.checkIn || !form.checkOut) {
-      toast.error("Kode booking, tamu, tipe kamar, dan tanggal wajib diisi");
+    if (!form.tamuId || !form.roomTypeId || !form.checkIn || !form.checkOut) {
+      toast.error("Tamu, tipe kamar, dan tanggal wajib diisi");
       return;
     }
     try {
       const payload = {
-        kodeBooking: form.kodeBooking,
         tamuId: form.tamuId,
         roomTypeId: form.roomTypeId,
-        checkIn: new Date(`${form.checkIn}T00:00:00.000Z`).toISOString(),
-        checkOut: new Date(`${form.checkOut}T00:00:00.000Z`).toISOString(),
+        // Kirim sebagai YYYY-MM-DD agar backend parsing konsisten (tanpa shift timezone).
+        checkIn: form.checkIn,
+        checkOut: form.checkOut,
         status: form.status,
         total: form.total ? Number(form.total) : 0,
       };
@@ -250,12 +257,16 @@ function BookingPage() {
       {open && (
         <Modal title={editing ? "Edit Booking" : "Tambah Booking"} onClose={() => setOpen(false)}>
           <form onSubmit={onSave} className="space-y-4">
-            <Input
-              label="Kode Booking"
-              value={form.kodeBooking}
-              onChange={(v) => setForm({ ...form, kodeBooking: v })}
-              placeholder="STY-2026-XXX-0000"
-            />
+            {editing ? (
+              <div className="rounded-xl border border-border bg-secondary/30 px-3 py-2.5 text-sm">
+                <div className="text-xs font-semibold text-muted-foreground">No Booking</div>
+                <div className="mt-0.5 font-mono font-bold">{editing.kodeBooking}</div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-secondary/30 px-3 py-2.5 text-sm text-muted-foreground">
+                No booking akan dibuat otomatis oleh sistem saat booking disimpan.
+              </div>
+            )}
             <Select
               label="Tamu"
               value={form.tamuId}
@@ -268,19 +279,129 @@ function BookingPage() {
               onChange={(v) => setForm({ ...form, roomTypeId: v })}
               options={roomTypeOptions}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Check-in"
-                type="date"
-                value={form.checkIn}
-                onChange={(v) => setForm({ ...form, checkIn: v })}
-              />
-              <Input
-                label="Check-out"
-                type="date"
-                value={form.checkOut}
-                onChange={(v) => setForm({ ...form, checkOut: v })}
-              />
+            <div className="rounded-xl border border-border p-3">
+              <div className="mb-2 flex items-end justify-between gap-2">
+                <div>
+                  <div className="text-xs font-semibold text-muted-foreground">Tanggal Menginap</div>
+                  <div className="mt-0.5 text-sm font-semibold">
+                    {form.checkIn ? formatDateId(form.checkIn) : "Pilih tanggal"} →{" "}
+                    {form.checkOut ? formatDateId(form.checkOut) : "Pilih tanggal"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDatePicker((v) => !v)}
+                  className="rounded-xl border border-border px-3 py-2 text-xs font-semibold"
+                >
+                  Pilih Tanggal
+                </button>
+              </div>
+
+              {showDatePicker && (
+                <div className="rounded-2xl border border-border bg-background p-3">
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                      onClick={() => setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+                    >
+                      Prev
+                    </button>
+                    <div className="text-xs font-semibold text-muted-foreground">
+                      {calMonth.toLocaleString("id-ID", { month: "long", year: "numeric" })}
+                    </div>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                      onClick={() => setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+                    >
+                      Next
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-7 gap-1 text-[10px]">
+                    {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d) => (
+                      <div key={d} className="pb-1 text-center font-bold text-muted-foreground">
+                        {d}
+                      </div>
+                    ))}
+                    {(() => {
+                      const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+                      const startDow = first.getDay();
+                      const daysInMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+                      const cells: Array<number | null> = [];
+                      for (let i = 0; i < startDow; i++) cells.push(null);
+                      for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                      while (cells.length < 42) cells.push(null);
+
+                      const todayYmd = toYmdLocal(new Date());
+                      const start = form.checkIn;
+                      const end = form.checkOut;
+
+                      return cells.map((day, idx) => {
+                        if (!day) return <div key={idx} className="aspect-square rounded-md" />;
+                        const ymd = toYmdLocal(new Date(calMonth.getFullYear(), calMonth.getMonth(), day));
+                        const isPast = ymd < todayYmd;
+                        const disabled = isPast;
+                        const isSelected = Boolean(start && end) && ymd >= start && ymd <= end;
+                        const isStart = ymd === start;
+                        const isEnd = ymd === end;
+                        const base = "bg-secondary/40 text-muted-foreground";
+                        const selectedCls = isSelected ? "bg-primary text-primary-foreground" : base;
+
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => {
+                              if (disabled) return;
+                              // klik pertama = check-in; klik kedua = check-out; klik lagi = mulai ulang.
+                              if (!start || (start && end)) {
+                                setForm((f) => ({ ...f, checkIn: ymd, checkOut: "" }));
+                                return;
+                              }
+                              if (ymd <= start) {
+                                setForm((f) => ({ ...f, checkIn: ymd, checkOut: "" }));
+                                return;
+                              }
+                              setForm((f) => ({ ...f, checkOut: ymd }));
+                            }}
+                            className={`aspect-square rounded-md border border-border px-0.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${selectedCls} ${
+                              isStart || isEnd ? "ring-2 ring-primary/30" : ""
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      className="w-full rounded-xl border border-border py-2 text-sm font-semibold"
+                      onClick={() => setForm((f) => ({ ...f, checkIn: "", checkOut: "" }))}
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full rounded-xl bg-accent py-2 text-sm font-semibold text-accent-foreground"
+                      onClick={() => {
+                        if (!form.checkIn || !form.checkOut) {
+                          toast.error("Pilih check-in dan check-out terlebih dahulu");
+                          return;
+                        }
+                        setShowDatePicker(false);
+                      }}
+                    >
+                      Selesai
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             <Select
               label="Status"

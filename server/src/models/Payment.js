@@ -20,6 +20,14 @@ const PaymentSchema = new mongoose.Schema(
     verifiedAt: { type: Date, required: false },
     rejectionReason: { type: String, required: false, default: "" },
     catatan: { type: String, required: false, default: "" },
+
+    // Prevent double emails
+    paymentSubmittedEmailSent: { type: Boolean, required: true, default: false, index: true },
+    paymentSubmittedEmailSentAt: { type: Date, required: false },
+    invoiceEmailSent: { type: Boolean, required: true, default: false, index: true },
+    invoiceEmailSentAt: { type: Date, required: false },
+    paymentRejectedEmailSent: { type: Boolean, required: true, default: false, index: true },
+    paymentRejectedEmailSentAt: { type: Date, required: false },
   },
   { timestamps: true }
 );

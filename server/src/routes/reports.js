@@ -27,14 +27,16 @@ reportsRouter.get("/finance", async (req, res, next) => {
     const { start, end } = getJakartaMonthRange(year, month);
     const { start: dayStart, end: dayEnd } = getJakartaDayRange(now);
 
+    const paidStatuses = ["Terverifikasi", "paid"];
+
     const [incomeMonthAgg, incomeDayAgg, expenseMonthAgg, expenseDayAgg, depositCutAgg] =
       await Promise.all([
         Payment.aggregate([
-          { $match: { status: "Terverifikasi", createdAt: { $gte: start, $lt: end } } },
+          { $match: { status: { $in: paidStatuses }, createdAt: { $gte: start, $lt: end } } },
           { $group: { _id: null, total: { $sum: "$jumlah" } } },
         ]),
         Payment.aggregate([
-          { $match: { status: "Terverifikasi", createdAt: { $gte: dayStart, $lt: dayEnd } } },
+          { $match: { status: { $in: paidStatuses }, createdAt: { $gte: dayStart, $lt: dayEnd } } },
           { $group: { _id: null, total: { $sum: "$jumlah" } } },
         ]),
         Expense.aggregate([
@@ -89,6 +91,41 @@ reportsRouter.get("/finance", async (req, res, next) => {
       { $sort: { pendapatan: -1 } },
     ]);
 
+    // Tabel data: pembayaran & biaya pada bulan terpilih (untuk laporan)
+    const [payments, expenses] = await Promise.all([
+      Payment.aggregate([
+        { $match: { status: { $in: paidStatuses }, createdAt: { $gte: start, $lt: end } } },
+        { $sort: { createdAt: -1 } },
+        { $limit: 500 },
+        {
+          $lookup: {
+            from: "bookings",
+            localField: "bookingId",
+            foreignField: "_id",
+            as: "booking",
+          },
+        },
+        { $unwind: { path: "$booking", preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            _id: 1,
+            createdAt: 1,
+            invoice: 1,
+            metode: 1,
+            jumlah: 1,
+            status: 1,
+            bookingId: 1,
+            kodeBooking: "$booking.kodeBooking",
+          },
+        },
+      ]),
+      Expense.find({ tanggal: { $gte: start, $lt: end } })
+        .sort({ tanggal: -1 })
+        .limit(500)
+        .select("-__v")
+        .lean(),
+    ]);
+
     res.json({
       data: {
         month: `${year}-${String(month).padStart(2, "0")}`,
@@ -99,6 +136,8 @@ reportsRouter.get("/finance", async (req, res, next) => {
         labaBulanan: pendapatanBulanan - biayaBulanan,
         potonganDepositBulanan,
         byRoomType,
+        payments,
+        expenses,
       },
     });
   } catch (err) {
@@ -117,7 +156,7 @@ reportsRouter.get("/bookings", async (req, res, next) => {
     const [statusAgg, totalAgg, avgAgg] = await Promise.all([
       Booking.aggregate([
         { $match: match },
-        { $group: { _id: "$status", total: { $sum: 1 } } },
+        { $group: { _id: "$bookingStatus", total: { $sum: 1 } } },
       ]),
       Booking.countDocuments(match),
       Booking.aggregate([
@@ -156,18 +195,52 @@ reportsRouter.get("/bookings", async (req, res, next) => {
       { $sort: { "_id.y": 1, "_id.m": 1, "_id.d": 1 } },
     ]);
 
+    // Tabel data: daftar booking (untuk laporan)
+    const bookings = await Booking.aggregate([
+      { $match: match },
+      { $sort: { createdAt: -1 } },
+      { $limit: 500 },
+      {
+        $lookup: {
+          from: "roomtypes",
+          localField: "roomTypeId",
+          foreignField: "_id",
+          as: "roomType",
+        },
+      },
+      { $unwind: { path: "$roomType", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          createdAt: 1,
+          kodeBooking: 1,
+          guestName: "$guestSnapshot.namaLengkap",
+          roomTypeName: "$roomType.namaTipe",
+          checkIn: 1,
+          checkOut: 1,
+          bookingStatus: 1,
+          paymentStatus: 1,
+          total: 1,
+        },
+      },
+    ]);
+
     res.json({
       data: {
         totalBooking: totalAgg,
-        sukses: (byStatus["Check-out"] ?? 0) + (byStatus["Check-in"] ?? 0) + (byStatus["Dikonfirmasi"] ?? 0),
-        dibatalkan: byStatus["Dibatalkan"] ?? 0,
+        sukses:
+          (byStatus["checked_out"] ?? 0) + (byStatus["checked_in"] ?? 0) + (byStatus["confirmed"] ?? 0),
+        dibatalkan: byStatus["cancelled"] ?? 0,
         byStatus,
         avgLengthNights: avgLength,
-        trend30: trendAgg.map((t) => ({ day: `${t._id.y}-${String(t._id.m).padStart(2, "0")}-${String(t._id.d).padStart(2, "0")}`, total: t.total })),
+        trend30: trendAgg.map((t) => ({
+          day: `${t._id.y}-${String(t._id.m).padStart(2, "0")}-${String(t._id.d).padStart(2, "0")}`,
+          total: t.total,
+        })),
+        bookings,
       },
     });
   } catch (err) {
     next(err);
   }
 });
-

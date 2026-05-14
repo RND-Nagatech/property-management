@@ -83,9 +83,9 @@ export function AdminLayout() {
 
   useEffect(() => {
     if (!adminLoggedIn) {
-      // Keep admin vs customer clearly separated.
-      const redirectTo = path === "/admin" ? "/admin/" : path;
-      navigate({ to: "/admin-login", search: { redirectTo } as any });
+      // Jika sudah di halaman login, jangan loop redirect
+      if (path.startsWith("/admin-login")) return;
+      navigate({ to: "/admin-login" });
     }
   }, [adminLoggedIn, navigate, path]);
 

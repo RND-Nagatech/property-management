@@ -39,7 +39,7 @@ const tabs = ["Semua", "Aktif", "Selesai", "Dibatalkan"];
 function MyBookings() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = React.useState(0); // 0: Semua, 1: Aktif, 2: Selesai, 3: Dibatalkan
+  const [activeTab, setActiveTab] = React.useState(1); // 0: Semua, 1: Aktif, 2: Selesai, 3: Dibatalkan
   const bookings = useQuery({
     queryKey: ["bookings", "my"],
     enabled: isLoggedIn(),

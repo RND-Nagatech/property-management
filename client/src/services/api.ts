@@ -1,5 +1,5 @@
 import { getAuthToken } from "./auth";
-import { getAdminToken } from "./admin-auth";
+import { clearAdminToken, getAdminToken } from "./admin-auth";
 
 type ApiError = {
   code?: string;
@@ -42,9 +42,14 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   const json = (await parseJsonSafe(response)) as ApiResponse<T> | null;
 
   if (!response.ok) {
+    if (response.status === 401 && isAdminApi) {
+      clearAdminToken();
+    }
     const errMsg =
       (json && "error" in json && json.error?.message) || `Request gagal (${response.status})`;
-    throw new Error(errMsg);
+    const err = new Error(errMsg) as Error & { status?: number };
+    err.status = response.status;
+    throw err;
   }
 
   if (!json || !("data" in json)) throw new Error("Response tidak valid");

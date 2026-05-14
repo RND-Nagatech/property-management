@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/services/api";
-import { isAdminLoggedIn } from "@/services/admin-auth";
+import { clearAdminToken } from "@/services/admin-auth";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 
 export type AdminMe = {
   _id: string;
@@ -11,10 +12,21 @@ export type AdminMe = {
 };
 
 export function useAdminMe() {
+  const adminLoggedIn = useAdminAuth();
   return useQuery({
     queryKey: ["admin", "me"],
-    enabled: isAdminLoggedIn(),
+    enabled: adminLoggedIn,
     queryFn: () => apiRequest<AdminMe>("/admin/auth/me"),
+    retry: false,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    onError: (err) => {
+      const status = (err as Error & { status?: number }).status;
+      if (status === 401) {
+        clearAdminToken();
+      }
+    },
   });
 }
 

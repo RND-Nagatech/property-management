@@ -13,6 +13,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as BookingSayaRouteImport } from './routes/booking-saya'
+import { Route as AkunRouteImport } from './routes/akun'
 import { Route as AdminLoginRouteImport } from './routes/admin-login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -59,6 +60,11 @@ const LoginRoute = LoginRouteImport.update({
 const BookingSayaRoute = BookingSayaRouteImport.update({
   id: '/booking-saya',
   path: '/booking-saya',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AkunRoute = AkunRouteImport.update({
+  id: '/akun',
+  path: '/akun',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminLoginRoute = AdminLoginRouteImport.update({
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/admin-login': typeof AdminLoginRoute
+  '/akun': typeof AkunRoute
   '/booking-saya': typeof BookingSayaRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin-login': typeof AdminLoginRoute
+  '/akun': typeof AkunRoute
   '/booking-saya': typeof BookingSayaRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/admin-login': typeof AdminLoginRoute
+  '/akun': typeof AkunRoute
   '/booking-saya': typeof BookingSayaRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/akun'
     | '/booking-saya'
     | '/login'
     | '/logout'
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin-login'
+    | '/akun'
     | '/booking-saya'
     | '/login'
     | '/logout'
@@ -367,6 +378,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/admin-login'
+    | '/akun'
     | '/booking-saya'
     | '/login'
     | '/logout'
@@ -401,6 +413,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
   AdminLoginRoute: typeof AdminLoginRoute
+  AkunRoute: typeof AkunRoute
   BookingSayaRoute: typeof BookingSayaRoute
   LoginRoute: typeof LoginRoute
   LogoutRoute: typeof LogoutRoute
@@ -441,6 +454,13 @@ declare module '@tanstack/react-router' {
       path: '/booking-saya'
       fullPath: '/booking-saya'
       preLoaderRoute: typeof BookingSayaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/akun': {
+      id: '/akun'
+      path: '/akun'
+      fullPath: '/akun'
+      preLoaderRoute: typeof AkunRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin-login': {
@@ -683,6 +703,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   AdminLoginRoute: AdminLoginRoute,
+  AkunRoute: AkunRoute,
   BookingSayaRoute: BookingSayaRoute,
   LoginRoute: LoginRoute,
   LogoutRoute: LogoutRoute,

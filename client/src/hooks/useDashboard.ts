@@ -19,9 +19,13 @@ export type DashboardData = {
   kerusakanAktif: Maintenance[];
 };
 
-export function useDashboard() {
+export function useDashboard(enabled = true) {
   return useQuery({
     queryKey: ["dashboard"],
+    enabled,
     queryFn: () => apiRequest<DashboardData>("/dashboard"),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }

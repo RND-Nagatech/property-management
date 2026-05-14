@@ -1,25 +1,22 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, BedDouble, Calendar, User, LogOut } from "lucide-react";
+import { Home, BedDouble, Calendar, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { ChevronDown } from "lucide-react";
 import { CustomerMenu } from "@/components/customer/CustomerMenu";
 
-function getNavItems(isLoggedIn: boolean) {
+function getNavItems() {
   return [
     { to: "/", label: "Beranda", icon: Home },
+    { to: "/booking-saya", label: "Booking Saya", icon: Calendar },
     { to: "/kamar", label: "Kamar", icon: BedDouble },
-    { to: "/booking-saya", label: "Booking", icon: Calendar },
-    isLoggedIn
-      ? { to: "/logout", label: "Keluar", icon: LogOut }
-      : { to: "/login", label: "Akun", icon: User },
+    { to: "/akun", label: "Akun", icon: User },
   ];
 }
 
 export function MobileNav() {
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const isLoggedIn = useAuth();
-  const items = getNavItems(isLoggedIn);
+  const items = getNavItems();
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border glass md:hidden">
       <ul className="grid grid-cols-4">
@@ -60,14 +57,14 @@ export function TopBar() {
           <Link to="/" className="hover:text-accent">
             Beranda
           </Link>
-          <Link to="/kamar" className="hover:text-accent">
-            Kamar
-          </Link>
           <Link to="/booking-saya" className="hover:text-accent">
             Booking Saya
           </Link>
-          <Link to="/admin" className="hover:text-accent">
-            Admin
+          <Link to="/kamar" className="hover:text-accent">
+            Kamar
+          </Link>
+          <Link to="/akun" className="hover:text-accent">
+            Akun
           </Link>
         </nav>
         <div className="flex items-center gap-2">

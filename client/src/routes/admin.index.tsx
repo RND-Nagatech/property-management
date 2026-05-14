@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatRupiah } from "@/lib/currency";
 import { useDashboard } from "@/hooks/useDashboard";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({ meta: [{ title: "Dashboard — Stayly Admin" }] }),
@@ -22,7 +23,8 @@ function formatTodayId(date = new Date()) {
 }
 
 function Dashboard() {
-  const dash = useDashboard();
+  const adminLoggedIn = useAdminAuth();
+  const dash = useDashboard(adminLoggedIn);
 
   const totals = dash.data?.totals;
   const trend = dash.data?.pendapatanTrend14 ?? [];

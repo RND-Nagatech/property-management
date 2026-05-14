@@ -1,9 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import heroImg from "@/assets/hero-villa.jpg";
 import { apiRequest } from "@/services/api";
-import { setAdminToken } from "@/services/admin-auth";
+import { isAdminLoggedIn, setAdminToken } from "@/services/admin-auth";
 
 export const Route = createFileRoute("/admin-login")({
   head: () => ({
@@ -13,6 +13,12 @@ export const Route = createFileRoute("/admin-login")({
 });
 
 function AdminLogin() {
+  // Jika sudah login admin, langsung redirect ke dashboard admin
+  useEffect(() => {
+    if (isAdminLoggedIn()) {
+      window.location.assign("/admin");
+    }
+  }, []);
   const navigate = useNavigate();
   const search = Route.useSearch() as any;
   const redirectToRaw =
@@ -45,9 +51,11 @@ function AdminLogin() {
         method: "POST",
         body: JSON.stringify({ username: u, password: p }),
       });
+      if (!res?.token) {
+        throw new Error("Token login tidak valid");
+      }
       setAdminToken(res.token);
-      // Ensure admin layout reads the new token immediately (avoid "must click twice" symptom).
-      window.location.assign(redirectTo);
+      window.location.assign("/admin");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal login admin");
     } finally {

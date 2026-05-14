@@ -11,7 +11,11 @@ export function getAdminToken(): string {
 
 export function setAdminToken(token: string) {
   try {
-    localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    if (!token) {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+    } else {
+      localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    }
     window.dispatchEvent(new Event(ADMIN_AUTH_EVENT));
   } catch {
     // ignore
@@ -28,5 +32,8 @@ export function clearAdminToken() {
 }
 
 export function isAdminLoggedIn(): boolean {
-  return Boolean(getAdminToken());
+  const token = getAdminToken().trim();
+  if (!token) return false;
+  if (token === "null" || token === "undefined") return false;
+  return true;
 }

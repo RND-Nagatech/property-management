@@ -4,8 +4,11 @@ import { formatRupiah } from "@/lib/currency";
 import { ArrowLeft, Building2, QrCode, Banknote, Upload, Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { isLoggedIn } from "@/services/auth";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/services/api";
+import { resolveMediaUrl } from "@/lib/media";
+import { useSettings } from "@/hooks/useSettings";
+import heroImg from "@/assets/hero-villa.jpg";
 
 export const Route = createFileRoute("/pembayaran/$id")({
   head: () => ({ meta: [{ title: "Pembayaran — Stayly" }] }),
@@ -15,9 +18,17 @@ export const Route = createFileRoute("/pembayaran/$id")({
 function Payment() {
   const navigate = useNavigate();
   const params = Route.useParams();
+  const qc = useQueryClient();
   const [method, setMethod] = useState("transfer");
   const [proofImage, setProofImage] = useState<string>("");
   const [error, setError] = useState<string>("");
+  const settings = useSettings();
+  const bankAccounts: Array<any> = Array.isArray(
+    (settings.data ?? []).find((s) => s.key === "bankAccounts")?.value
+  )
+    ? (((settings.data ?? []).find((s) => s.key === "bankAccounts") as any)?.value as any[])
+    : [];
+  const activeAccounts = bankAccounts.filter((a) => a && a.isActive !== false);
 
   const booking = useQuery({
     queryKey: ["bookings", params.id],
@@ -38,13 +49,18 @@ function Payment() {
               ? "transfer_bank"
               : method === "qris"
                 ? "qris"
-                : "cash",
+                : "transfer_bank",
           jumlah: Number(booking.data.total ?? 0),
           proofImage,
         }),
       });
     },
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["deposits"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
       navigate({ to: "/booking-berhasil/$id", params: { id: params.id } });
     },
     onError: (err) => {
@@ -112,12 +128,6 @@ function Payment() {
                     desc: "BCA, Mandiri, BNI, BRI",
                   },
                   { id: "qris", icon: QrCode, label: "QRIS", desc: "Bayar dengan scan QR" },
-                  {
-                    id: "cash",
-                    icon: Banknote,
-                    label: "Cash di Properti",
-                    desc: "Bayar saat check-in",
-                  },
                 ].map((m) => (
                   <label
                     key={m.id}
@@ -145,10 +155,29 @@ function Payment() {
             {method === "transfer" && (
               <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
                 <h3 className="text-base font-bold">Transfer ke Rekening</h3>
-                <div className="mt-3 rounded-xl bg-secondary p-4">
-                  <div className="text-xs text-muted-foreground">BCA — Stayly Indonesia</div>
-                  <div className="mt-1 text-xl font-bold tracking-wide">8870 1234 5678</div>
-                </div>
+                {settings.isLoading ? (
+                  <div className="mt-3 text-sm text-muted-foreground">Memuat rekening...</div>
+                ) : activeAccounts.length === 0 ? (
+                  <div className="mt-3 rounded-xl border border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
+                    Rekening transfer belum diatur. Admin dapat menambahkan di menu Rekening.
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    {activeAccounts.slice(0, 3).map((a, idx) => (
+                      <div key={idx} className="rounded-xl bg-secondary p-4">
+                        <div className="text-xs text-muted-foreground">
+                          {String(a.bankName ?? "-")} — {String(a.accountName ?? "-")}
+                        </div>
+                        <div className="mt-1 text-xl font-bold tracking-wide">
+                          {String(a.accountNumber ?? "-")}
+                        </div>
+                        {a.note ? (
+                          <div className="mt-1 text-xs text-muted-foreground">{String(a.note)}</div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-4">
                   <div className="text-sm font-medium">Upload Bukti Transfer</div>
                   <label className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border bg-secondary/40 p-8 hover:border-accent">
@@ -209,7 +238,7 @@ function Payment() {
               <div className="mt-3 flex gap-3">
                 {roomType?.gambarThumbnail ? (
                   <img
-                    src={roomType.gambarThumbnail}
+                    src={resolveMediaUrl(roomType.gambarThumbnail) || heroImg}
                     alt=""
                     className="h-16 w-20 rounded-lg object-cover"
                   />
@@ -233,7 +262,7 @@ function Payment() {
               <button
                 type="button"
                 onClick={() => submitPayment.mutate()}
-                disabled={submitPayment.isPending || (method !== "cash" && !proofImage)}
+                disabled={submitPayment.isPending || !proofImage}
                 className="mt-5 hidden lg:inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-semibold text-accent-foreground hover:opacity-90 disabled:opacity-50"
               >
                 <Check className="h-4 w-4" />{" "}
@@ -254,7 +283,7 @@ function Payment() {
           <button
             type="button"
             onClick={() => submitPayment.mutate()}
-            disabled={submitPayment.isPending || (method !== "cash" && !proofImage)}
+            disabled={submitPayment.isPending || !proofImage}
             className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-accent py-3.5 text-sm font-semibold text-accent-foreground disabled:opacity-50"
           >
             <Check className="h-4 w-4" /> {submitPayment.isPending ? "Memproses..." : "Konfirmasi"}

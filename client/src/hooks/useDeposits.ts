@@ -40,7 +40,11 @@ export function useCreateDeposit() {
   return useMutation({
     mutationFn: (payload: Partial<Deposit>) =>
       apiRequest<Deposit>("/deposits", { method: "POST", body: JSON.stringify(payload) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["deposits"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deposits"] });
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }
 
@@ -52,6 +56,10 @@ export function useUpdateDeposit() {
         method: "PUT",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["deposits"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deposits"] });
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }

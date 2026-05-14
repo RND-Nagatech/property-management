@@ -68,7 +68,13 @@ export function useCreateBooking() {
   return useMutation({
     mutationFn: (payload: Partial<Booking>) =>
       apiRequest<Booking>("/bookings", { method: "POST", body: JSON.stringify(payload) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["deposits"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }
 
@@ -80,7 +86,11 @@ export function useUpdateBooking() {
         method: "PUT",
         body: JSON.stringify(payload),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }
 
@@ -89,7 +99,11 @@ export function useCheckInBooking() {
   return useMutation({
     mutationFn: (id: string) =>
       apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/check-in`, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }
 
@@ -98,7 +112,12 @@ export function useCheckOutBooking() {
   return useMutation({
     mutationFn: (id: string) =>
       apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/check-out`, { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["deposits"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }
 
@@ -107,6 +126,24 @@ export function useDeleteBooking() {
   return useMutation({
     mutationFn: (id: string) =>
       apiRequest<Booking>(`/bookings/${encodeURIComponent(id)}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["bookings"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
+  });
+}
+
+export function useAdminCancelBooking() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }

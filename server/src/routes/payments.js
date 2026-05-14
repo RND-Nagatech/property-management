@@ -58,6 +58,7 @@ paymentsRouter.post("/", requireAuth, async (req, res, next) => {
       metode: String(body.metode),
       jumlah: Number(body.jumlah),
       proofImage: String(body.proofImage ?? ""),
+      // Customer submit bukti bayar -> menunggu verifikasi admin
       status: "waiting_confirmation",
       catatan: String(body.catatan ?? ""),
     });

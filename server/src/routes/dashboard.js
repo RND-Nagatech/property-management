@@ -27,6 +27,7 @@ dashboardRouter.get("/", async (_req, res, next) => {
       pembayaranPending,
       pendapatanHariIni,
       pendapatanBulanan,
+      pendapatanTrend14,
       bookingTerbaru,
       kerusakanAktif,
       biayaHariIni,
@@ -35,15 +36,47 @@ dashboardRouter.get("/", async (_req, res, next) => {
       Booking.countDocuments({ checkIn: { $gte: dayStart, $lt: dayEnd } }),
       Booking.countDocuments({ checkOut: { $gte: dayStart, $lt: dayEnd } }),
       Room.countDocuments({ status: "tersedia" }),
-      Payment.countDocuments({ status: "Menunggu" }),
+      Payment.countDocuments({ status: { $in: ["waiting_confirmation", "Menunggu"] } }),
       Payment.aggregate([
-        { $match: { status: "Terverifikasi", createdAt: { $gte: dayStart, $lt: dayEnd } } },
+        { $match: { status: { $in: ["paid", "Terverifikasi"] }, createdAt: { $gte: dayStart, $lt: dayEnd } } },
         { $group: { _id: null, total: { $sum: "$jumlah" } } },
       ]),
       Payment.aggregate([
-        { $match: { status: "Terverifikasi", createdAt: { $gte: monthStart, $lt: monthEnd } } },
+        { $match: { status: { $in: ["paid", "Terverifikasi"] }, createdAt: { $gte: monthStart, $lt: monthEnd } } },
         { $group: { _id: null, total: { $sum: "$jumlah" } } },
       ]),
+      (async () => {
+        // 14 hari terakhir berdasarkan hari Jakarta (termasuk hari ini)
+        const { start: todayStart } = getJakartaDayRange(now);
+        const start14 = new Date(todayStart);
+        start14.setDate(start14.getDate() - 13);
+
+        const agg = await Payment.aggregate([
+          { $match: { status: { $in: ["paid", "Terverifikasi"] }, createdAt: { $gte: start14 } } },
+          {
+            $group: {
+              _id: {
+                y: { $year: "$createdAt" },
+                m: { $month: "$createdAt" },
+                d: { $dayOfMonth: "$createdAt" },
+              },
+              total: { $sum: "$jumlah" },
+            },
+          },
+          { $sort: { "_id.y": 1, "_id.m": 1, "_id.d": 1 } },
+        ]);
+
+        // normalize missing days to 0
+        const map = new Map(agg.map((t) => [`${t._id.y}-${String(t._id.m).padStart(2, "0")}-${String(t._id.d).padStart(2, "0")}`, t.total]));
+        const out = [];
+        for (let i = 0; i < 14; i++) {
+          const d = new Date(start14);
+          d.setDate(d.getDate() + i);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          out.push({ day: key, total: map.get(key) ?? 0 });
+        }
+        return out;
+      })(),
       Booking.find({ kodeBooking: { $exists: true, $ne: null } })
         .sort({ createdAt: -1 })
         .limit(6)
@@ -81,6 +114,7 @@ dashboardRouter.get("/", async (_req, res, next) => {
           pendapatanBulanan: pendapatanBulananTotal,
           biayaHariIni: biayaHariIniTotal,
         },
+        pendapatanTrend14,
         bookingTerbaru,
         kerusakanAktif,
       },
@@ -89,4 +123,3 @@ dashboardRouter.get("/", async (_req, res, next) => {
     next(err);
   }
 });
-

@@ -1,4 +1,5 @@
 const TOKEN_KEY = "pm_auth_token";
+const AUTH_EVENT = "pm_auth_change";
 
 export function getAuthToken(): string {
   try {
@@ -11,6 +12,7 @@ export function getAuthToken(): string {
 export function setAuthToken(token: string) {
   try {
     localStorage.setItem(TOKEN_KEY, token);
+    window.dispatchEvent(new Event(AUTH_EVENT));
   } catch {
     // ignore
   }
@@ -19,6 +21,7 @@ export function setAuthToken(token: string) {
 export function clearAuthToken() {
   try {
     localStorage.removeItem(TOKEN_KEY);
+    window.dispatchEvent(new Event(AUTH_EVENT));
   } catch {
     // ignore
   }
@@ -27,4 +30,3 @@ export function clearAuthToken() {
 export function isLoggedIn(): boolean {
   return Boolean(getAuthToken());
 }
-

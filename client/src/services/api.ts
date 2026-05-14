@@ -1,4 +1,5 @@
 import { getAuthToken } from "./auth";
+import { getAdminToken } from "./admin-auth";
 
 type ApiError = {
   code?: string;
@@ -26,7 +27,8 @@ async function parseJsonSafe(response: Response) {
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const baseUrl = getBaseUrl();
   const url = `${baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
-  const token = getAuthToken();
+  const isAdminApi = path.startsWith("/admin/");
+  const token = isAdminApi ? getAdminToken() : getAuthToken();
 
   const response = await fetch(url, {
     ...init,

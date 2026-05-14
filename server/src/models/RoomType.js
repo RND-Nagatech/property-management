@@ -14,6 +14,20 @@ const RoomTypeSchema = new mongoose.Schema(
     tipeKasur: { type: String, required: false, default: "" },
     includeSarapan: { type: Boolean, required: true, default: false },
     depositDefault: { type: Number, required: true, default: 0 },
+    deposit: {
+      type: {
+        type: String,
+        required: false,
+        enum: ["MONEY", "DOCUMENT"],
+      },
+      amount: { type: Number, required: false, default: 0 },
+      documentType: {
+        type: String,
+        required: false,
+        enum: ["KTP", "PASSPORT", "SIM", null],
+        default: null,
+      },
+    },
     kebijakanRefund: { type: String, required: false, default: "" },
     kebijakanReschedule: { type: String, required: false, default: "" },
     jamCheckIn: { type: String, required: true, default: "14:00" },

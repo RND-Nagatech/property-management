@@ -21,7 +21,10 @@ import { formatRupiah } from "@/lib/currency";
 import { formatDateId, formatDateRangeId } from "@/lib/dates";
 import { useClickOutside } from "@/hooks/use-click-outside";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
+import { useSettings } from "@/hooks/useSettings";
+import { usePublicTestimonials } from "@/hooks/useTestimonials";
 import type { RoomType } from "@/services/types";
+import { resolveMediaUrl } from "@/lib/media";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -31,8 +34,24 @@ function Index() {
   // State untuk form pencarian
 
   // State untuk date range picker
-  const [checkin, setCheckin] = React.useState("2026-05-13");
-  const [checkout, setCheckout] = React.useState("2026-05-14");
+  const todayYmd = React.useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+  const tomorrowYmd = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+
+  const [checkin, setCheckin] = React.useState(todayYmd);
+  const [checkout, setCheckout] = React.useState(tomorrowYmd);
   const [showDatePicker, setShowDatePicker] = React.useState(false);
   // State untuk tamu/kamar
   const [adults, setAdults] = React.useState(2);
@@ -46,6 +65,28 @@ function Index() {
   useClickOutside([guestRef], () => setShowGuestPopover(false), showGuestPopover);
 
   const roomTypes = useRoomTypes(false);
+  const settings = useSettings();
+  const testimonialsQ = usePublicTestimonials();
+
+  const byKey = React.useMemo(() => {
+    const map = new Map<string, unknown>();
+    for (const s of settings.data ?? []) map.set(s.key, s.value);
+    return map;
+  }, [settings.data]);
+
+  const propertyName = String(byKey.get("propertyName") ?? "").trim();
+  const propertyLocation = String(byKey.get("propertyLocation") ?? "").trim();
+  const heroHeadline =
+    String(byKey.get("heroHeadline") ?? "").trim() || "Pengalaman menginap yang tak terlupakan.";
+  const heroSubheadline =
+    String(byKey.get("heroSubheadline") ?? "").trim() ||
+    "Pilih tanggal, pilih kamar, dan nikmati liburan Anda — konfirmasi instan.";
+  const logo = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? "").trim());
+  const facilities: string[] = Array.isArray(byKey.get("propertyFacilities"))
+    ? (byKey.get("propertyFacilities") as any[]).map((x) => String(x ?? "").trim()).filter(Boolean)
+    : [];
+
+  const testimonials = testimonialsQ.data ?? [];
 
   return (
     <div className="min-h-screen pb-20 md:pb-0">
@@ -62,13 +103,18 @@ function Index() {
           <div className="absolute inset-0 bg-gradient-to-b from-primary/50 via-primary/25 to-primary/85" />
           <div className="relative z-10 mx-auto flex h-full max-w-6xl flex-col justify-end px-4 pb-40 md:pb-40">
             <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-medium text-white backdrop-blur md:text-xs">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Stayly Resort & Villa · Bali
+              {logo ? (
+                <img src={logo} alt="" className="h-4 w-4 rounded-sm object-contain" />
+              ) : (
+                <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              )}{" "}
+              {(propertyName || "Properti") + (propertyLocation ? ` · ${propertyLocation}` : "")}
             </span>
             <h1 className="mt-3 max-w-2xl text-3xl font-bold leading-tight text-white md:mt-4 md:text-6xl text-balance">
-              Pengalaman menginap yang tak terlupakan.
+              {heroHeadline}
             </h1>
             <p className="mt-2 max-w-xl text-sm text-white/85 md:mt-3 md:text-lg">
-              Pilih tanggal, pilih kamar, dan nikmati liburan Anda — konfirmasi instan.
+              {heroSubheadline}
             </p>
           </div>
         </div>
@@ -227,45 +273,47 @@ function Index() {
         </div>
       </section>
 
-      {/* Promo */}
-      <section className="mx-auto max-w-6xl px-4 pt-16">
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            {
-              tag: "FLASH SALE",
-              title: "Diskon hingga 35%",
-              desc: "Untuk booking 3 malam atau lebih.",
-              color: "bg-accent",
-            },
-            {
-              tag: "EARLY BIRD",
-              title: "Hemat 20%",
-              desc: "Pesan 30 hari sebelum check-in.",
-              color: "bg-primary",
-            },
-            {
-              tag: "WEEKEND",
-              title: "Free Sarapan",
-              desc: "Setiap akhir pekan untuk 2 orang.",
-              color: "bg-warning",
-            },
-          ].map((p) => (
-            <div
-              key={p.title}
-              className="group relative overflow-hidden rounded-2xl bg-card p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-soft)] transition"
-            >
-              <span
-                className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider ${p.color === "bg-warning" ? "text-primary" : "text-white"} ${p.color}`}
+      {/* Promo (disembunyikan sementara) */}
+      {false && (
+        <section className="mx-auto max-w-6xl px-4 pt-16">
+          <div className="grid gap-4 md:grid-cols-3">
+            {[
+              {
+                tag: "FLASH SALE",
+                title: "Diskon hingga 35%",
+                desc: "Untuk booking 3 malam atau lebih.",
+                color: "bg-accent",
+              },
+              {
+                tag: "EARLY BIRD",
+                title: "Hemat 20%",
+                desc: "Pesan 30 hari sebelum check-in.",
+                color: "bg-primary",
+              },
+              {
+                tag: "WEEKEND",
+                title: "Free Sarapan",
+                desc: "Setiap akhir pekan untuk 2 orang.",
+                color: "bg-warning",
+              },
+            ].map((p) => (
+              <div
+                key={p.title}
+                className="group relative overflow-hidden rounded-2xl bg-card p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-soft)] transition"
               >
-                {p.tag}
-              </span>
-              <h3 className="mt-3 text-xl font-bold">{p.title}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{p.desc}</p>
-              <ArrowRight className="absolute right-5 bottom-5 h-5 w-5 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-accent" />
-            </div>
-          ))}
-        </div>
-      </section>
+                <span
+                  className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-bold tracking-wider ${p.color === "bg-warning" ? "text-primary" : "text-white"} ${p.color}`}
+                >
+                  {p.tag}
+                </span>
+                <h3 className="mt-3 text-xl font-bold">{p.title}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{p.desc}</p>
+                <ArrowRight className="absolute right-5 bottom-5 h-5 w-5 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-accent" />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Recommended rooms */}
       <section className="mx-auto max-w-6xl px-4 pt-16">
@@ -319,24 +367,20 @@ function Index() {
           Semua yang Anda butuhkan untuk pengalaman menginap terbaik
         </p>
         <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[
-            { i: Wifi, t: "WiFi Cepat" },
-            { i: Waves, t: "Kolam Renang" },
-            { i: Utensils, t: "Restoran" },
-            { i: Coffee, t: "Sarapan" },
-            { i: Dumbbell, t: "Gym" },
-            { i: Car, t: "Parkir" },
-            { i: ShieldCheck, t: "Keamanan 24/7" },
-            { i: Star, t: "Layanan Premium" },
-          ].map((f) => (
+          {facilities.length === 0 && (
+            <div className="col-span-full rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+              Fasilitas properti belum diatur. Admin dapat mengisi di menu Pengaturan.
+            </div>
+          )}
+          {facilities.slice(0, 8).map((t) => (
             <div
-              key={f.t}
+              key={t}
               className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                <f.i className="h-5 w-5" />
+                <ShieldCheck className="h-5 w-5" />
               </div>
-              <span className="text-sm font-medium">{f.t}</span>
+              <span className="text-sm font-medium">{t}</span>
             </div>
           ))}
         </div>
@@ -346,36 +390,35 @@ function Index() {
       <section className="mx-auto max-w-6xl px-4 py-20">
         <h2 className="text-2xl font-bold md:text-3xl">Apa kata tamu kami</h2>
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          {[
-            {
-              n: "Anisa P.",
-              c: "Pemandangan villa luar biasa, pelayanan ramah. Pasti balik lagi!",
-              r: 5,
-            },
-            {
-              n: "Rizki H.",
-              c: "Booking gampang, check-in cepat. Kamarnya bersih dan nyaman.",
-              r: 5,
-            },
-            {
-              n: "Maya S.",
-              c: "Sarapan enak, kolam renang infinity bikin betah. Recommended!",
-              r: 5,
-            },
-          ].map((rev) => (
-            <div key={rev.n} className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
+          {testimonialsQ.isLoading && (
+            <div className="md:col-span-3 rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+              Memuat testimoni...
+            </div>
+          )}
+          {testimonialsQ.isError && (
+            <div className="md:col-span-3 rounded-2xl border border-border bg-card p-6 text-sm text-destructive">
+              {testimonialsQ.error instanceof Error ? testimonialsQ.error.message : "Gagal memuat testimoni"}
+            </div>
+          )}
+          {!testimonialsQ.isLoading && !testimonialsQ.isError && testimonials.length === 0 && (
+            <div className="md:col-span-3 rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+              Belum ada testimoni.
+            </div>
+          )}
+          {testimonials.slice(0, 6).map((rev) => (
+            <div key={rev._id} className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
               <div className="flex gap-0.5 text-warning">
-                {Array.from({ length: rev.r }).map((_, i) => (
+                {Array.from({ length: rev.rating }).map((_, i) => (
                   <Star key={i} className="h-4 w-4 fill-current" />
                 ))}
               </div>
-              <p className="mt-3 text-sm leading-relaxed">"{rev.c}"</p>
+              <p className="mt-3 text-sm leading-relaxed">"{rev.comment}"</p>
               <div className="mt-4 flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
-                  {rev.n[0]}
+                  {rev.guestName[0]}
                 </div>
                 <div>
-                  <div className="text-sm font-semibold">{rev.n}</div>
+                  <div className="text-sm font-semibold">{rev.guestName}</div>
                   <div className="text-xs text-muted-foreground">Tamu terverifikasi</div>
                 </div>
               </div>
@@ -386,14 +429,14 @@ function Index() {
 
       <footer className="border-t border-border bg-card">
         <div className="mx-auto max-w-6xl px-4 py-10 text-sm text-muted-foreground">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
                 S
               </div>
-              <span className="font-bold text-foreground">Stayly</span>
+              <span className="font-bold text-foreground">{propertyName || "Properti"}</span>
             </div>
-            <p>© 2026 Stayly. Semua hak dilindungi.</p>
+            <p>© {new Date().getFullYear()} {propertyName || "Properti"}. Semua hak dilindungi.</p>
           </div>
         </div>
       </footer>
@@ -437,7 +480,7 @@ function RoomCard({ roomType }: { roomType: RoomType }) {
       <div className="relative aspect-[4/3] overflow-hidden">
         {roomType.gambarThumbnail ? (
           <img
-            src={roomType.gambarThumbnail}
+            src={resolveMediaUrl(roomType.gambarThumbnail) || heroImg}
             alt={roomType.namaTipe}
             loading="lazy"
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
@@ -465,7 +508,7 @@ function RoomCard({ roomType }: { roomType: RoomType }) {
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-lg bg-accent/10 px-2 py-1 text-xs font-semibold text-accent">
-            <Star className="h-3 w-3 fill-current" /> 4.9
+            <Star className="h-3 w-3 fill-current" /> Populer
           </div>
         </div>
         <div className="mt-4 flex items-end justify-between">

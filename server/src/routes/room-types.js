@@ -109,7 +109,11 @@ roomTypesRouter.put("/:id", async (req, res, next) => {
       return res.status(400).json({ error: { code: "BAD_REQUEST", message: "id tidak valid" } });
     }
     const body = req.body ?? {};
-    const nextSlug = body.slug ? normalizeSlug(body.slug) : undefined;
+    const nextSlug = body.slug
+      ? normalizeSlug(body.slug)
+      : body.namaTipe
+        ? normalizeSlug(body.namaTipe)
+        : undefined;
 
     const updated = await RoomType.findByIdAndUpdate(
       req.params.id,
@@ -152,4 +156,3 @@ roomTypesRouter.delete("/:id", async (req, res, next) => {
     next(err);
   }
 });
-

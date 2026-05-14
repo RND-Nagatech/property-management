@@ -9,6 +9,7 @@ import { useGuests } from "@/hooks/useGuests";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
 import {
   useBookings,
+  useAdminCancelBooking,
   useCreateBooking,
   useDeleteBooking,
   useUpdateBooking,
@@ -45,6 +46,7 @@ function BookingPage() {
   const createBooking = useCreateBooking();
   const updateBooking = useUpdateBooking();
   const deleteBooking = useDeleteBooking();
+  const cancelBooking = useAdminCancelBooking();
   const guests = useGuests("");
   const roomTypes = useRoomTypes(false);
 
@@ -135,6 +137,15 @@ function BookingPage() {
     }
   }
 
+  async function onCancel(id: string) {
+    try {
+      await cancelBooking.mutateAsync(id);
+      toast.success("Booking dibatalkan");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal membatalkan booking");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Booking" desc="Kelola semua reservasi">
@@ -212,6 +223,15 @@ function BookingPage() {
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
+                      {b.status !== "Dibatalkan" && b.status !== "Check-out" && (
+                        <button
+                          onClick={() => onCancel(b._id)}
+                          className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-destructive"
+                          title="Batalkan booking"
+                        >
+                          Batal
+                        </button>
+                      )}
                       <button
                         onClick={() => onDelete(b._id)}
                         className="rounded-lg border border-border p-1.5 text-muted-foreground hover:text-destructive"

@@ -12,6 +12,11 @@ export type RoomType = {
   tipeKasur: string;
   includeSarapan: boolean;
   depositDefault: number;
+  deposit?: {
+    type: "MONEY" | "DOCUMENT";
+    amount: number;
+    documentType: "KTP" | "PASSPORT" | "SIM" | null;
+  };
   kebijakanRefund: string;
   kebijakanReschedule: string;
   jamCheckIn: string;

@@ -1,6 +1,7 @@
 import express from "express";
 import mongoose from "mongoose";
 import { Deposit } from "../models/Deposit.js";
+import { Booking } from "../models/Booking.js";
 
 export const depositsRouter = express.Router();
 
@@ -17,6 +18,7 @@ depositsRouter.get("/", async (_req, res, next) => {
       .sort({ createdAt: -1 })
       .populate("bookingId")
       .populate("tamuId")
+      .populate("customerId")
       .select("-__v")
       .lean();
     res.json({ data: items });
@@ -28,11 +30,25 @@ depositsRouter.get("/", async (_req, res, next) => {
 depositsRouter.post("/", async (req, res, next) => {
   try {
     const body = req.body ?? {};
-    const required = ["bookingId", "tamuId", "jumlah"];
+    const required = ["bookingId", "jumlah"];
     for (const k of required) {
       if (!body[k]) return res.status(400).json({ error: { code: "BAD_REQUEST", message: `${k} wajib` } });
     }
-    const created = await Deposit.create(body);
+
+    // If tamuId not provided (customer booking), resolve snapshot/customerId from booking
+    const bookingId = String(body.bookingId);
+    if (!isObjectId(bookingId)) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "bookingId tidak valid" } });
+    }
+    const booking = await Booking.findById(bookingId).select({ tamuId: 1, customerId: 1, guestSnapshot: 1 }).lean();
+    if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
+
+    const created = await Deposit.create({
+      ...body,
+      tamuId: body.tamuId && isObjectId(String(body.tamuId)) ? body.tamuId : booking.tamuId,
+      customerId: booking.customerId ?? body.customerId,
+      guestSnapshot: booking.guestSnapshot ?? body.guestSnapshot,
+    });
     res.status(201).json({ data: created.toObject() });
   } catch (err) {
     next(err);

@@ -5,6 +5,8 @@ import { formatDateRangeId } from "@/lib/dates";
 import { pickBookingSearchState } from "@/lib/booking-search-state";
 import { Star, Users, Maximize, Coffee, SlidersHorizontal } from "lucide-react";
 import { useRoomTypes } from "@/hooks/useRoomTypes";
+import { resolveMediaUrl } from "@/lib/media";
+import heroImg from "@/assets/hero-villa.jpg";
 
 export const Route = createFileRoute("/kamar/")({
   head: () => ({ meta: [{ title: "Pilih Kamar — Stayly" }] }),
@@ -65,7 +67,7 @@ function RoomList() {
               <div className="relative aspect-[4/3] sm:aspect-auto sm:w-2/5 overflow-hidden">
                 {r.gambarThumbnail ? (
                   <img
-                    src={r.gambarThumbnail}
+                    src={resolveMediaUrl(r.gambarThumbnail) || heroImg}
                     alt={r.namaTipe}
                     loading="lazy"
                     className="h-full w-full object-cover transition group-hover:scale-105"
@@ -84,7 +86,7 @@ function RoomList() {
                   <div className="flex items-start justify-between">
                     <h3 className="text-lg font-bold">{r.namaTipe}</h3>
                     <div className="flex items-center gap-1 rounded-lg bg-accent/10 px-2 py-1 text-xs font-semibold text-accent">
-                      <Star className="h-3 w-3 fill-current" /> 4.9
+                      <Star className="h-3 w-3 fill-current" /> Populer
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
@@ -108,9 +110,7 @@ function RoomList() {
                 <div className="mt-4 flex items-end justify-between">
                   <div>
                     <div className="text-xl font-bold">{formatRupiah(r.hargaDefault)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      per malam · sudah termasuk pajak
-                    </div>
+                    <div className="text-xs text-muted-foreground">per malam</div>
                   </div>
                   <span className="rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground">
                     Lihat Detail

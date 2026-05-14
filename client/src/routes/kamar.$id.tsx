@@ -7,12 +7,14 @@ import { useClickOutside } from "@/hooks/use-click-outside";
 import { pickBookingSearchState } from "@/lib/booking-search-state";
 import { useRoomType } from "@/hooks/useRoomTypes";
 import { isLoggedIn } from "@/services/auth";
+import { useAvailability } from "@/hooks/useAvailability";
+import { resolveMediaUrl } from "@/lib/media";
+import heroImg from "@/assets/hero-villa.jpg";
 import {
   Users,
   Maximize,
   Bed,
   Coffee,
-  Star,
   Check,
   ArrowLeft,
   Clock,
@@ -26,25 +28,8 @@ export const Route = createFileRoute("/kamar/$id")({
 });
 
 function RoomDetail() {
-  const navigate = useNavigate();
   const params = Route.useParams();
   const roomType = useRoomType(params.id);
-  const locationState = useRouterState({ select: (s) => s.location.state });
-  const searchState = pickBookingSearchState(locationState);
-  // State booking form
-  const [checkin, setCheckin] = React.useState(() => searchState.checkin ?? "2026-05-12");
-  const [checkout, setCheckout] = React.useState(() => searchState.checkout ?? "2026-05-15");
-  const [showDatePicker, setShowDatePicker] = React.useState(false);
-  // State tamu/kamar (mirip landing page)
-  const [adults, setAdults] = React.useState(() => searchState.adults ?? 2);
-  const [children, setChildren] = React.useState(() => searchState.children ?? 0);
-  const [roomsCount, setRoomsCount] = React.useState(() => searchState.roomsCount ?? 1);
-  const [showGuestPopover, setShowGuestPopover] = React.useState(false);
-
-  const dateRef = React.useRef<HTMLDivElement | null>(null);
-  const guestRef = React.useRef<HTMLDivElement | null>(null);
-  useClickOutside([dateRef], () => setShowDatePicker(false), showDatePicker);
-  useClickOutside([guestRef], () => setShowGuestPopover(false), showGuestPopover);
 
   if (roomType.isLoading) {
     return (
@@ -81,12 +66,101 @@ function RoomDetail() {
     );
   }
 
-  const room = roomType.data;
-  const gallery = room.galeriGambar?.length
+  return <RoomDetailContent room={roomType.data} />;
+}
+
+function RoomDetailContent({ room }: { room: any }) {
+  const navigate = useNavigate();
+  const locationState = useRouterState({ select: (s) => s.location.state });
+  const searchState = pickBookingSearchState(locationState);
+
+  const todayYmd = React.useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+  const tomorrowYmd = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+
+  const [checkin, setCheckin] = React.useState(() => searchState.checkin ?? todayYmd);
+  const [checkout, setCheckout] = React.useState(() => searchState.checkout ?? tomorrowYmd);
+  const [showDatePicker, setShowDatePicker] = React.useState(false);
+  const [adults, setAdults] = React.useState(() => searchState.adults ?? 2);
+  const [children, setChildren] = React.useState(() => searchState.children ?? 0);
+  const [roomsCount, setRoomsCount] = React.useState(() => searchState.roomsCount ?? 1);
+  const [showGuestPopover, setShowGuestPopover] = React.useState(false);
+
+  const dateRef = React.useRef<HTMLDivElement | null>(null);
+  const guestRef = React.useRef<HTMLDivElement | null>(null);
+  useClickOutside([dateRef], () => setShowDatePicker(false), showDatePicker);
+  useClickOutside([guestRef], () => setShowGuestPopover(false), showGuestPopover);
+
+  const [calMonth, setCalMonth] = React.useState(() => new Date());
+
+  function toYmdLocal(d: Date) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  const monthFrom = React.useMemo(() => {
+    const d = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+    return toYmdLocal(d);
+  }, [calMonth]);
+
+  const monthTo = React.useMemo(() => {
+    const d = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0);
+    return toYmdLocal(d);
+  }, [calMonth]);
+
+  const availability = useAvailability({ from: monthFrom, to: monthTo, roomTypeId: room._id });
+  const availabilityMap = React.useMemo(() => {
+    const m: Record<string, { status: string; booked: number; available: number }> = {};
+    const data = availability.data && !Array.isArray(availability.data) ? availability.data : null;
+    for (const d of data?.days ?? []) {
+      m[d.date] = { status: d.status, booked: d.booked, available: d.available };
+    }
+    return m;
+  }, [availability.data]);
+
+  const [calError, setCalError] = React.useState<string>("");
+
+  function addDaysYmd(ymd: string, days: number) {
+    const [y, m, d] = ymd.split("-").map((n) => Number(n));
+    const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
+    dt.setDate(dt.getDate() + days);
+    return toYmdLocal(dt);
+  }
+
+  function inRange(ymd: string, start: string, end: string) {
+    return ymd >= start && ymd <= end;
+  }
+
+  function rangeHasFullBooked(start: string, end: string) {
+    // booking counts for nights: [start, end) ; we disallow FULL_BOOKED dates inside start..(end-1)
+    let d = start;
+    while (d < end) {
+      if (availabilityMap[d]?.status === "FULL_BOOKED") return d;
+      d = addDaysYmd(d, 1);
+    }
+    return "";
+  }
+
+  const galleryRaw = room.galeriGambar?.length
     ? room.galeriGambar
     : room.gambarThumbnail
       ? [room.gambarThumbnail]
       : [];
+  const gallery = galleryRaw.map((g: string) => resolveMediaUrl(g)).filter(Boolean);
   return (
     <div className="min-h-screen pb-28 md:pb-12">
       <TopBar />
@@ -124,9 +198,6 @@ function RoomDetail() {
                 <p className="mt-1 text-xs text-muted-foreground md:text-sm">
                   {room.tipeKasur || "-"} · Stayly Resort & Villa
                 </p>
-              </div>
-              <div className="flex items-center gap-1.5 rounded-xl bg-accent/10 px-3 py-1.5 text-xs font-semibold text-accent md:py-2 md:text-sm">
-                <Star className="h-4 w-4 fill-current" /> 4.9 · 248 ulasan
               </div>
             </div>
 
@@ -209,31 +280,133 @@ function RoomDetail() {
                   {showDatePicker && (
                     <div className="absolute left-1/2 -translate-x-1/2 top-12 z-30 w-[320px] rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in">
                       <div className="font-bold mb-2 text-base">Tanggal Menginap</div>
-                      <div className="flex gap-3 mb-3">
-                        <div>
-                          <div className="text-xs text-muted-foreground mb-1">Check-In</div>
-                          <input
-                            type="date"
-                            value={checkin}
-                            min={new Date().toISOString().slice(0, 10)}
-                            max={checkout}
-                            onChange={(e) => setCheckin(e.target.value)}
-                            className="rounded-xl border border-input bg-background px-2 py-1 text-sm focus:border-accent outline-none"
-                          />
-                          <div className="text-xs mt-1 font-semibold">{formatDateId(checkin)}</div>
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                          onClick={() =>
+                            setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+                          }
+                        >
+                          Prev
+                        </button>
+                        <div className="text-xs font-semibold text-muted-foreground">
+                          {calMonth.toLocaleString("id-ID", { month: "long", year: "numeric" })}
                         </div>
-                        <div>
-                          <div className="text-xs text-muted-foreground mb-1">Check-Out</div>
-                          <input
-                            type="date"
-                            value={checkout}
-                            min={checkin}
-                            onChange={(e) => setCheckout(e.target.value)}
-                            className="rounded-xl border border-input bg-background px-2 py-1 text-sm focus:border-accent outline-none"
-                          />
-                          <div className="text-xs mt-1 font-semibold">{formatDateId(checkout)}</div>
-                        </div>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                          onClick={() =>
+                            setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+                          }
+                        >
+                          Next
+                        </button>
                       </div>
+
+                      <div className="mt-3 grid grid-cols-7 gap-1 text-[10px]">
+                        {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d) => (
+                          <div key={d} className="pb-1 text-center font-bold text-muted-foreground">
+                            {d}
+                          </div>
+                        ))}
+                        {(() => {
+                          const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+                          const startDow = first.getDay(); // 0=Sun
+                          const daysInMonth = new Date(
+                            calMonth.getFullYear(),
+                            calMonth.getMonth() + 1,
+                            0
+                          ).getDate();
+
+                          const cells = [];
+                          for (let i = 0; i < startDow; i++) cells.push(null);
+                          for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                          while (cells.length < 42) cells.push(null);
+
+                          return cells.map((day, idx) => {
+                            if (!day) {
+                              return <div key={idx} className="aspect-square rounded-md" />;
+                            }
+                            const ymd = toYmdLocal(
+                              new Date(calMonth.getFullYear(), calMonth.getMonth(), day)
+                            );
+
+                            const st = availabilityMap[ymd]?.status;
+                            const isPast = ymd < todayYmd;
+                            const isFull = st === "FULL_BOOKED";
+                            const isSelected = inRange(ymd, checkin, checkout);
+                            const isStart = ymd === checkin;
+                            const isEnd = ymd === checkout;
+
+                            const base =
+                              st === "FULL_BOOKED"
+                                ? "bg-destructive/10 text-destructive"
+                                : st === "PARTIAL_BOOKED"
+                                  ? "bg-warning/15 text-warning"
+                                  : st === "AVAILABLE"
+                                    ? "bg-success/15 text-success"
+                                    : "bg-secondary/40 text-muted-foreground";
+
+                            const selectedCls = isSelected
+                              ? "bg-primary text-primary-foreground"
+                              : base;
+
+                            const disabled = isPast || isFull;
+
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                disabled={disabled}
+                                onClick={() => {
+                                  setCalError("");
+                                  if (disabled) return;
+                                  // Select start/end range
+                                  if (!checkin || (checkin && checkout && ymd <= checkin)) {
+                                    setCheckin(ymd);
+                                    setCheckout(addDaysYmd(ymd, 1));
+                                    return;
+                                  }
+                                  if (ymd > checkin) {
+                                    const nextCheckout = ymd;
+                                    const bad = rangeHasFullBooked(checkin, nextCheckout);
+                                    if (bad) {
+                                      setCalError(`Tanggal ${bad} FULL BOOKED. Rentang tidak boleh melewati tanggal tersebut.`);
+                                      return;
+                                    }
+                                    setCheckout(nextCheckout);
+                                  }
+                                }}
+                                className={`aspect-square rounded-md border border-border px-0.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                                  selectedCls
+                                } ${isStart || isEnd ? "ring-2 ring-primary/30" : ""}`}
+                                title={
+                                  isFull
+                                    ? "FULL BOOKED"
+                                    : availabilityMap[ymd]
+                                      ? `${availabilityMap[ymd].available} tersedia`
+                                      : ""
+                                }
+                              >
+                                {day}
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
+
+                      {availability.isLoading && (
+                        <div className="text-xs text-muted-foreground">Memuat ketersediaan...</div>
+                      )}
+                      {availability.isError && (
+                        <div className="text-xs text-destructive">
+                          {availability.error instanceof Error
+                            ? availability.error.message
+                            : "Gagal memuat ketersediaan"}
+                        </div>
+                      )}
+                      {calError && <div className="text-xs text-destructive mt-2">{calError}</div>}
                       <button
                         className="w-full rounded-xl bg-accent py-2 text-sm font-semibold text-accent-foreground mt-2"
                         onClick={() => setShowDatePicker(false)}

@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/services/api";
 import { useEffect, useState } from "react";
 import QRCodeLib from "qrcode";
+import { resolveMediaUrl } from "@/lib/media";
+import heroImg from "@/assets/hero-villa.jpg";
 
 export const Route = createFileRoute("/booking-berhasil/$id")({
   head: () => ({ meta: [{ title: "Booking Berhasil — Stayly" }] }),
@@ -60,6 +62,7 @@ function Success() {
 
   const data = booking.data;
   const roomType = data?.roomTypeId;
+  const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${data?._id}`;
   return (
     <div className="min-h-screen bg-background">
       <TopBar />
@@ -96,7 +99,7 @@ function Success() {
             <div className="flex items-center gap-3">
               {roomType?.gambarThumbnail ? (
                 <img
-                  src={roomType.gambarThumbnail}
+                  src={resolveMediaUrl(roomType.gambarThumbnail) || heroImg}
                   alt=""
                   className="h-14 w-14 rounded-lg object-cover"
                 />
@@ -115,15 +118,22 @@ function Success() {
                   ? "Dikonfirmasi"
                   : data?.bookingStatus === "waiting_confirmation"
                     ? "Menunggu Konfirmasi"
-                    : "Menunggu Pembayaran"}
+                    : data?.bookingStatus === "pending_payment"
+                      ? "Menunggu Pembayaran"
+                      : "Menunggu"}
               </span>
             </div>
           </div>
 
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
-            <button className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold">
+            <a
+              href={invoiceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold"
+            >
               <Download className="h-4 w-4" /> Download Invoice
-            </button>
+            </a>
             <Link
               to="/booking-saya"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-semibold text-accent-foreground"

@@ -40,6 +40,12 @@ export function useUpdatePayment() {
         method: "POST",
         body: JSON.stringify(payload ?? {}),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["payments"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["deposits"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
+    },
   });
 }

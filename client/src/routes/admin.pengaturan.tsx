@@ -21,17 +21,19 @@ function Pengaturan() {
   }, [settings.data]);
 
   const [form, setForm] = useState({
-    propertyName: "Stayly Resort & Villa",
-    contactEmail: "hello@stayly.id",
-    phone: "0361 234 5678",
-    website: "stayly.id",
+    propertyName: "",
+    propertyLocation: "",
+    heroHeadline: "",
+    heroSubheadline: "",
+    propertyFacilities: "",
+    contactEmail: "",
+    phone: "",
+    website: "",
     checkInTime: "14:00",
     checkOutTime: "12:00",
-    address: "Jl. Pantai Berawa No. 88, Canggu, Bali",
-    invoiceTemplate:
-      "Terima kasih telah menginap di {{property}}.\nInvoice: {{invoice_no}}\nTotal: {{total}}",
-    whatsappTemplate:
-      "Halo {{guest_name}},\nBooking {{booking_code}} dikonfirmasi.\nCheck-in: {{checkin_date}}",
+    address: "",
+    invoiceTemplate: "",
+    whatsappTemplate: "",
     invoiceNote: "",
     logoDataUrl: "",
   });
@@ -41,6 +43,13 @@ function Pengaturan() {
     setForm((prev) => ({
       ...prev,
       propertyName: (byKey.get("propertyName") as string) ?? prev.propertyName,
+      propertyLocation: (byKey.get("propertyLocation") as string) ?? prev.propertyLocation,
+      heroHeadline: (byKey.get("heroHeadline") as string) ?? prev.heroHeadline,
+      heroSubheadline: (byKey.get("heroSubheadline") as string) ?? prev.heroSubheadline,
+      propertyFacilities:
+        Array.isArray(byKey.get("propertyFacilities"))
+          ? (byKey.get("propertyFacilities") as any[]).join(", ")
+          : ((byKey.get("propertyFacilities") as string) ?? prev.propertyFacilities),
       contactEmail: (byKey.get("contactEmail") as string) ?? prev.contactEmail,
       phone: (byKey.get("phone") as string) ?? prev.phone,
       website: (byKey.get("website") as string) ?? prev.website,
@@ -55,9 +64,17 @@ function Pengaturan() {
   }, [byKey, settings.data]);
 
   async function onSave() {
+    const facilities = form.propertyFacilities
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     try {
       await Promise.all([
         upsert.mutateAsync({ key: "propertyName", value: form.propertyName }),
+        upsert.mutateAsync({ key: "propertyLocation", value: form.propertyLocation }),
+        upsert.mutateAsync({ key: "heroHeadline", value: form.heroHeadline }),
+        upsert.mutateAsync({ key: "heroSubheadline", value: form.heroSubheadline }),
+        upsert.mutateAsync({ key: "propertyFacilities", value: facilities }),
         upsert.mutateAsync({ key: "contactEmail", value: form.contactEmail }),
         upsert.mutateAsync({ key: "phone", value: form.phone }),
         upsert.mutateAsync({ key: "website", value: form.website }),
@@ -110,6 +127,11 @@ function Pengaturan() {
               onChange={(e) => setForm({ ...form, propertyName: e.target.value })}
             />
             <Field
+              label="Lokasi (contoh: Bali)"
+              value={form.propertyLocation}
+              onChange={(e) => setForm({ ...form, propertyLocation: e.target.value })}
+            />
+            <Field
               label="Email Kontak"
               value={form.contactEmail}
               onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
@@ -123,6 +145,18 @@ function Pengaturan() {
               label="Website"
               value={form.website}
               onChange={(e) => setForm({ ...form, website: e.target.value })}
+            />
+            <Field
+              label="Headline Landing"
+              value={form.heroHeadline}
+              onChange={(e) => setForm({ ...form, heroHeadline: e.target.value })}
+              placeholder="Pengalaman menginap yang tak terlupakan."
+            />
+            <Field
+              label="Subheadline Landing"
+              value={form.heroSubheadline}
+              onChange={(e) => setForm({ ...form, heroSubheadline: e.target.value })}
+              placeholder="Pilih tanggal, pilih kamar, dan nikmati liburan Anda — konfirmasi instan."
             />
             <Field
               label="Jam Check-in"
@@ -142,6 +176,16 @@ function Pengaturan() {
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
               className="mt-1.5 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:border-accent outline-none"
+            />
+          </div>
+          <div className="mt-4">
+            <label className="text-sm font-medium">Fasilitas Properti (pisahkan dengan koma)</label>
+            <textarea
+              rows={3}
+              value={form.propertyFacilities}
+              onChange={(e) => setForm({ ...form, propertyFacilities: e.target.value })}
+              className="mt-1.5 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm focus:border-accent outline-none"
+              placeholder="WiFi Cepat, Kolam Renang, Parkir, Keamanan 24/7"
             />
           </div>
         </div>

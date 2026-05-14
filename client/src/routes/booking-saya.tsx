@@ -3,9 +3,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { TopBar, MobileNav } from "@/components/customer/Nav";
 import { formatRupiah } from "@/lib/currency";
 import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/services/api";
-import { Calendar, QrCode, FileText, ChevronRight } from "lucide-react";
+import { Calendar, QrCode, FileText, ChevronRight, X } from "lucide-react";
 import { isLoggedIn } from "@/services/auth";
+import { resolveMediaUrl } from "@/lib/media";
 
 export const Route = createFileRoute("/booking-saya")({
   head: () => ({ meta: [{ title: "Booking Saya — Stayly" }] }),
@@ -36,11 +38,20 @@ const tabs = ["Semua", "Aktif", "Selesai", "Dibatalkan"];
 
 function MyBookings() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const [activeTab, setActiveTab] = React.useState(0); // 0: Semua, 1: Aktif, 2: Selesai, 3: Dibatalkan
   const bookings = useQuery({
     queryKey: ["bookings", "my"],
     enabled: isLoggedIn(),
     queryFn: () => apiRequest<any[]>("/bookings/my"),
+  });
+
+  const cancelBooking = useMutation({
+    mutationFn: async (id: string) =>
+      apiRequest(`/bookings/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+    },
   });
 
   const filteredBookings = React.useMemo(() => {
@@ -98,14 +109,17 @@ function MyBookings() {
             </div>
           )}
           {filteredBookings.map((b) => {
-            const roomType = b.roomTypeId;
+            const roomType = b.roomTypeId && typeof b.roomTypeId === "object" ? b.roomTypeId : null;
             const st = labelStatus(b);
+            const bs = String(b.bookingStatus ?? "");
+            const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${b._id}`;
+            const canCancel = bs === "pending_payment" || bs === "waiting_confirmation";
             return (
               <div key={b._id} className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
                 <div className="flex gap-4">
-                  {roomType.gambarThumbnail ? (
+                  {roomType?.gambarThumbnail ? (
                     <img
-                      src={roomType.gambarThumbnail}
+                      src={resolveMediaUrl(roomType.gambarThumbnail) || roomType.gambarThumbnail}
                       alt=""
                       className="h-20 w-24 shrink-0 rounded-xl object-cover sm:h-24 sm:w-28"
                     />
@@ -117,7 +131,7 @@ function MyBookings() {
                       <div className="min-w-0">
                         <div className="text-xs text-muted-foreground">{b.kodeBooking}</div>
                         <div className="mt-0.5 truncate text-base font-bold">
-                          {roomType.namaTipe}
+                          {roomType?.namaTipe ?? "-"}
                         </div>
                         <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
                           <Calendar className="h-3 w-3" />
@@ -133,6 +147,41 @@ function MyBookings() {
                     <div className="mt-3 flex items-end justify-between">
                       <div className="text-base font-bold">{formatRupiah(b.total ?? 0)}</div>
                       <div className="flex gap-1.5">
+                        {bs === "pending_payment" && (
+                          <Link
+                            to="/pembayaran/$id"
+                            params={{ id: b._id }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
+                          >
+                            Lanjut Bayar <ChevronRight className="h-3 w-3" />
+                          </Link>
+                        )}
+                        {canCancel && (
+                          <button
+                            type="button"
+                            disabled={cancelBooking.isPending}
+                            onClick={() => {
+                              const ok = window.confirm(
+                                "Batalkan booking ini? Booking yang dibatalkan tidak bisa dipulihkan."
+                              );
+                              if (!ok) return;
+                              cancelBooking.mutate(b._id);
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold"
+                            title="Batalkan booking"
+                          >
+                            <X className="h-3 w-3" /> Batal
+                          </button>
+                        )}
+                        {bs === "checked_out" && (
+                          <Link
+                            to="/testimoni/$id"
+                            params={{ id: b._id }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                          >
+                            Beri Testimoni <ChevronRight className="h-3 w-3" />
+                          </Link>
+                        )}
                         <Link
                           to="/booking-berhasil/$id"
                           params={{ id: b._id }}
@@ -140,16 +189,24 @@ function MyBookings() {
                         >
                           <QrCode className="h-4 w-4" />
                         </Link>
-                        <button className="rounded-lg border border-border p-2">
-                          <FileText className="h-4 w-4" />
-                        </button>
-                        <Link
-                          to="/kamar/$id"
-                          params={{ id: roomType.slug }}
-                          className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                        <a
+                          href={invoiceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-border p-2 inline-flex"
+                          title="Download Invoice"
                         >
-                          Detail <ChevronRight className="h-3 w-3" />
-                        </Link>
+                          <FileText className="h-4 w-4" />
+                        </a>
+                        {roomType?.slug && (
+                          <Link
+                            to="/kamar/$id"
+                            params={{ id: roomType.slug }}
+                            className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                          >
+                            Detail <ChevronRight className="h-3 w-3" />
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </div>

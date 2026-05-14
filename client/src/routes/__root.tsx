@@ -88,7 +88,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      {/* suppressHydrationWarning to avoid noisy warnings from browser extensions that mutate DOM */}
+      <body suppressHydrationWarning>
         {children}
         <Scripts />
       </body>

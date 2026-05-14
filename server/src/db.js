@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 export async function connectDb(mongoUri) {
   mongoose.set("strictQuery", true);
-  await mongoose.connect(mongoUri);
+  await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });
 
   // Dev-safety: clean up legacy indexes from earlier schema experiments
   try {

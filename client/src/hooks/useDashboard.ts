@@ -14,6 +14,7 @@ export type DashboardData = {
     pendapatanBulanan: number;
     biayaHariIni: number;
   };
+  pendapatanTrend14?: Array<{ day: string; total: number }>;
   bookingTerbaru: Booking[];
   kerusakanAktif: Maintenance[];
 };

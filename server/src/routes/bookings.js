@@ -4,6 +4,7 @@ import { Booking } from "../models/Booking.js";
 import { Room } from "../models/Room.js";
 import { requireAuth } from "../auth.js";
 import { Customer } from "../models/Customer.js";
+import { RoomType } from "../models/RoomType.js";
 import { generateBookingCode } from "../utils/booking-code.js";
 
 export const bookingsRouter = express.Router();
@@ -136,8 +137,16 @@ bookingsRouter.post("/", requireAuth, async (req, res, next) => {
     if (!mongoose.isValidObjectId(String(body.roomTypeId))) {
       return res.status(400).json({ error: { code: "BAD_REQUEST", message: "roomTypeId tidak valid" } });
     }
-    const checkIn = new Date(body.checkIn);
-    const checkOut = new Date(body.checkOut);
+    function parseLocalDate(value) {
+      const s = String(value ?? "").trim();
+      if (!s) return new Date("invalid");
+      // If it's a plain YYYY-MM-DD, force local midnight to avoid UTC shift.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T00:00:00`);
+      return new Date(s);
+    }
+
+    const checkIn = parseLocalDate(body.checkIn);
+    const checkOut = parseLocalDate(body.checkOut);
     if (!checkIn.getTime() || !checkOut.getTime()) {
       return res.status(400).json({ error: { code: "BAD_REQUEST", message: "checkIn/checkOut tidak valid" } });
     }
@@ -178,6 +187,18 @@ bookingsRouter.post("/", requireAuth, async (req, res, next) => {
       return res.status(409).json({ error: { code: "NO_AVAILABILITY", message: "Kamar tidak tersedia di tanggal tersebut" } });
     }
 
+    const roomType = await RoomType.findById(body.roomTypeId).select({ hargaDefault: 1, depositDefault: 1 }).lean();
+    if (!roomType) {
+      return res.status(404).json({ error: { code: "NOT_FOUND", message: "Tipe kamar tidak ditemukan" } });
+    }
+
+    const msDay = 24 * 60 * 60 * 1000;
+    const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / msDay));
+    const pricePerNight = Number(roomType.hargaDefault ?? 0);
+    const deposit = Number(roomType.depositDefault ?? 0);
+    const subtotal = pricePerNight * nights;
+    const total = subtotal + deposit;
+
     const kodeBooking = await generateBookingCode(new Date());
     const bookingStatus = "pending_payment";
     const paymentStatus = "unpaid";
@@ -200,7 +221,7 @@ bookingsRouter.post("/", requireAuth, async (req, res, next) => {
       dewasa: Number(body.dewasa ?? 2),
       anak: Number(body.anak ?? 0),
       catatan: String(body.catatan ?? ""),
-      total: Number(body.total ?? 0),
+      total,
       bookingStatus,
       paymentStatus,
       status: mapBookingStatusToLegacy(bookingStatus),
@@ -264,6 +285,43 @@ bookingsRouter.post("/:id/check-out", async (req, res, next) => {
     if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
 
     booking.status = "Check-out";
+    await booking.save();
+
+    if (booking.roomId) {
+      await Room.findByIdAndUpdate(booking.roomId, { status: "tersedia" });
+    }
+
+    res.json({ data: booking.toObject() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Customer cancel booking (requires login + ownership)
+bookingsRouter.post("/:id/cancel", requireAuth, async (req, res, next) => {
+  try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "id tidak valid" } });
+    }
+    const userId = String(req.user?.sub ?? "");
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token tidak valid" } });
+    }
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
+    if (String(booking.customerId ?? "") !== userId) {
+      return res.status(403).json({ error: { code: "FORBIDDEN", message: "Tidak punya akses" } });
+    }
+
+    // MVP: customer hanya boleh cancel sebelum confirmed/checked-in
+    const bs = booking.bookingStatus ?? "pending_payment";
+    if (bs === "confirmed" || bs === "checked_in" || bs === "checked_out") {
+      return res.status(409).json({ error: { code: "NOT_ALLOWED", message: "Booking tidak bisa dibatalkan" } });
+    }
+
+    booking.bookingStatus = "cancelled";
+    booking.paymentStatus = booking.paymentStatus === "paid" ? booking.paymentStatus : "failed";
+    booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
     await booking.save();
 
     if (booking.roomId) {

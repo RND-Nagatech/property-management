@@ -3,8 +3,10 @@ import mongoose from "mongoose";
 import { Payment } from "../models/Payment.js";
 import { Booking } from "../models/Booking.js";
 import { Room } from "../models/Room.js";
+import { requireAdminAuth } from "../auth.js";
 
 export const adminPaymentsRouter = express.Router();
+adminPaymentsRouter.use(requireAdminAuth);
 
 function isObjectId(value) {
   return typeof value === "string" && mongoose.isValidObjectId(value);

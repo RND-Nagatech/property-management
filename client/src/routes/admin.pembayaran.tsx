@@ -5,6 +5,8 @@ import { formatRupiah } from "@/lib/currency";
 import { toast } from "sonner";
 import { usePayments } from "@/hooks/usePayments";
 import { useUpdatePayment } from "@/hooks/usePayments";
+import { Modal } from "./admin.tipe-kamar";
+import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/admin/pembayaran")({
   head: () => ({ meta: [{ title: "Pembayaran" }] }),
@@ -25,6 +27,39 @@ const sc: Record<string, string> = {
 function Pembayaran() {
   const payments = usePayments();
   const updatePayment = useUpdatePayment();
+  const [preview, setPreview] = useState<null | { invoice: string; proof?: string }>(null);
+
+  const rows = useMemo(() => payments.data ?? [], [payments.data]);
+
+  function guestLabel(p: any) {
+    const booking = p?.bookingId && typeof p.bookingId === "object" ? p.bookingId : null;
+    const fromSnapshot = booking?.guestSnapshot?.namaLengkap;
+    const fromCustomer = booking?.customerId?.namaLengkap;
+    const fromGuest = p?.tamuId && typeof p.tamuId === "object" ? p.tamuId?.nama : "";
+    return fromSnapshot || fromCustomer || fromGuest || "-";
+  }
+
+  function openProof(p: any) {
+    const proof = String(p?.proofImage ?? "").trim();
+    setPreview({ invoice: String(p?.invoice ?? "-"), proof: proof || "" });
+  }
+
+  function isImage(src: string) {
+    const s = src.toLowerCase();
+    return (
+      s.startsWith("data:image/") ||
+      s.endsWith(".png") ||
+      s.endsWith(".jpg") ||
+      s.endsWith(".jpeg") ||
+      s.endsWith(".webp") ||
+      s.endsWith(".gif")
+    );
+  }
+
+  function isPdf(src: string) {
+    const s = src.toLowerCase();
+    return s.startsWith("data:application/pdf") || s.endsWith(".pdf");
+  }
 
   async function setStatus(id: string, status: "Terverifikasi" | "Ditolak") {
     try {
@@ -66,27 +101,32 @@ function Pembayaran() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {(payments.data ?? []).map((d) => (
+            {rows.map((d) => (
               <tr key={d._id} className="hover:bg-secondary/40">
                 <td className="py-3.5 font-mono text-xs font-bold">{d.invoice}</td>
-                <td className="py-3.5 font-medium">{(d.tamuId as any)?.nama ?? "-"}</td>
+                <td className="py-3.5 font-medium">{guestLabel(d)}</td>
                 <td className="py-3.5 text-muted-foreground">{d.metode}</td>
                 <td className="py-3.5 font-semibold">{formatRupiah(d.jumlah)}</td>
                 <td className="py-3.5">
                   {(() => {
                     const lbl = labelStatus(String(d.status));
                     return (
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sc[lbl]}`}
-                  >
-                    {lbl}
-                  </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sc[lbl]}`}
+                      >
+                        {lbl}
+                      </span>
                     );
                   })()}
                 </td>
                 <td className="py-3.5">
                   <div className="flex justify-end gap-1.5">
-                    <button className="rounded-lg border border-border p-1.5">
+                    <button
+                      type="button"
+                      onClick={() => openProof(d)}
+                      className="rounded-lg border border-border p-1.5"
+                      title="Lihat bukti"
+                    >
                       <Eye className="h-3.5 w-3.5" />
                     </button>
                     {labelStatus(String(d.status)) === "Menunggu" && (
@@ -112,6 +152,53 @@ function Pembayaran() {
           </tbody>
         </table>
       </div>
+
+      {preview && (
+        <Modal title={`Bukti Pembayaran • ${preview.invoice}`} onClose={() => setPreview(null)}>
+          {!preview.proof ? (
+            <div className="text-sm text-muted-foreground">Belum ada bukti pembayaran.</div>
+          ) : isImage(preview.proof) ? (
+            <img
+              src={preview.proof}
+              alt="Bukti pembayaran"
+              className="max-h-[70vh] w-full rounded-xl border border-border object-contain"
+            />
+          ) : isPdf(preview.proof) ? (
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                Preview PDF mungkin tidak tersedia di semua browser. Jika tidak tampil, klik link di bawah.
+              </div>
+              <iframe
+                src={preview.proof}
+                className="h-[70vh] w-full rounded-xl border border-border bg-background"
+                title="Bukti PDF"
+              />
+              <a
+                href={preview.proof}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground"
+              >
+                Buka di tab baru
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                Format bukti tidak didukung untuk preview. Silakan buka link.
+              </div>
+              <a
+                href={preview.proof}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground"
+              >
+                Buka Bukti
+              </a>
+            </div>
+          )}
+        </Modal>
+      )}
     </div>
   );
 }

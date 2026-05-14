@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { ArrowRight, ScanLine } from "lucide-react";
 import { PageHeader } from "./admin.tipe-kamar";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useBookingByCode, useCheckInBooking, useUpdateBooking } from "@/hooks/useBookings";
 import { useRooms } from "@/hooks/useRooms";
@@ -14,6 +14,12 @@ export const Route = createFileRoute("/admin/check-in")({
 function CheckInPage() {
   const [code, setCode] = useState("");
   const [submitted, setSubmitted] = useState("");
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
+  const scanRafRef = useRef<number | null>(null);
 
   const booking = useBookingByCode(submitted);
   const updateBooking = useUpdateBooking();
@@ -28,7 +34,7 @@ function CheckInPage() {
       toast.error("Booking code wajib diisi");
       return;
     }
-    setSubmitted(code.trim());
+    setSubmitted(code.trim().toUpperCase());
   }
 
   async function onConfirm() {
@@ -57,6 +63,112 @@ function CheckInPage() {
     }
   }
 
+  async function startCamera() {
+    setCameraError("");
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError("Browser tidak mendukung akses kamera");
+        setCameraOn(false);
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOn(true);
+    } catch (err) {
+      setCameraError(err instanceof Error ? err.message : "Tidak bisa mengakses kamera");
+      setCameraOn(false);
+    }
+  }
+
+  function stopCamera() {
+    if (scanTimerRef.current) {
+      window.clearInterval(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+    if (scanRafRef.current) {
+      cancelAnimationFrame(scanRafRef.current);
+      scanRafRef.current = null;
+    }
+    const stream = streamRef.current;
+    if (stream) {
+      for (const t of stream.getTracks()) t.stop();
+    }
+    streamRef.current = null;
+    setCameraOn(false);
+  }
+
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
+
+  useEffect(() => {
+    // Attach stream to video after the element is mounted (cameraOn toggles conditional render)
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!cameraOn || !video || !stream) return;
+    video.srcObject = stream;
+    video
+      .play()
+      .catch((err) => setCameraError(err instanceof Error ? err.message : "Gagal menyalakan kamera"));
+  }, [cameraOn]);
+
+  useEffect(() => {
+    // Start QR scan loop using built-in BarcodeDetector when possible
+    if (!cameraOn) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const BarcodeDetectorCtor = (globalThis as any).BarcodeDetector;
+    if (!BarcodeDetectorCtor) {
+      setCameraError("Scanner QR tidak didukung di browser ini. Gunakan input nomor booking.");
+      return;
+    }
+
+    let detector: any;
+    try {
+      detector = new BarcodeDetectorCtor({ formats: ["qr_code"] });
+    } catch {
+      setCameraError("Scanner QR tidak tersedia. Gunakan input nomor booking.");
+      return;
+    }
+
+    let lastScanAt = 0;
+    const scan = async (ts: number) => {
+      scanRafRef.current = requestAnimationFrame(scan);
+      if (!video || video.readyState < 2) return;
+      if (ts - lastScanAt < 250) return;
+      lastScanAt = ts;
+      try {
+        const codes = await detector.detect(video);
+        const raw = codes?.[0]?.rawValue ? String(codes[0].rawValue).trim() : "";
+        if (!raw) return;
+        const normalized = raw.toUpperCase();
+        setCode(normalized);
+        setSubmitted(normalized);
+        toast.success("QR terdeteksi");
+        stopCamera();
+      } catch {
+        // ignore scan errors
+      }
+    };
+    scanRafRef.current = requestAnimationFrame(scan);
+
+    return () => {
+      if (scanTimerRef.current) {
+        window.clearInterval(scanTimerRef.current);
+        scanTimerRef.current = null;
+      }
+      if (scanRafRef.current) {
+        cancelAnimationFrame(scanRafRef.current);
+        scanRafRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraOn]);
+
   return (
     <div className="space-y-6">
       <PageHeader title="Check-in" desc="Scan QR atau input booking code untuk check-in tamu" />
@@ -64,21 +176,45 @@ function CheckInPage() {
         <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
           <h3 className="text-base font-bold">Scan QR Booking</h3>
           <div className="mt-4 flex aspect-square w-full items-center justify-center rounded-2xl border-2 border-dashed border-border bg-secondary/40">
-            <div className="text-center">
-              <ScanLine className="mx-auto h-16 w-16 text-muted-foreground" />
-              <div className="mt-3 text-sm font-medium">Arahkan kamera ke QR</div>
-              <button className="mt-3 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground">
-                Aktifkan Kamera
-              </button>
-            </div>
+            {cameraOn ? (
+              <div className="relative h-full w-full overflow-hidden rounded-2xl">
+                <video
+                  ref={videoRef}
+                  className="h-full w-full object-cover"
+                  playsInline
+                  muted
+                  autoPlay
+                />
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-xl bg-black/60 px-4 py-2 text-xs font-semibold text-white"
+                >
+                  Matikan Kamera
+                </button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <ScanLine className="mx-auto h-16 w-16 text-muted-foreground" />
+                <div className="mt-3 text-sm font-medium">Arahkan kamera ke QR</div>
+                <button
+                  type="button"
+                  onClick={startCamera}
+                  className="mt-3 rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground"
+                >
+                  Aktifkan Kamera
+                </button>
+                {cameraError && <div className="mt-3 text-xs text-destructive">{cameraError}</div>}
+              </div>
+            )}
           </div>
         </div>
         <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
-          <h3 className="text-base font-bold">Input Booking Code</h3>
+          <h3 className="text-base font-bold">Input Nomor Booking</h3>
           <div className="mt-4">
-            <label className="text-sm font-medium">Booking Code</label>
+            <label className="text-sm font-medium">Nomor Booking</label>
             <input
-              placeholder="STY-2026-XXX-0000"
+              placeholder="BK-260514-001"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               className="mt-1.5 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-sm uppercase outline-none focus:border-accent"

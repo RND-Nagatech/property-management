@@ -1,3 +1,4 @@
+import * as React from "react";
 import { createFileRoute, Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { TopBar } from "@/components/customer/Nav";
 import { formatRupiah } from "@/lib/currency";
@@ -7,10 +8,12 @@ import { ArrowLeft, Check } from "lucide-react";
 import { useRoomType } from "@/hooks/useRoomTypes";
 import { isLoggedIn } from "@/services/auth";
 import { useMe } from "@/hooks/useMe";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/services/api";
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { useEffect } from "react";
+import { resolveMediaUrl } from "@/lib/media";
+import heroImg from "@/assets/hero-villa.jpg";
 
 export const Route = createFileRoute("/booking/$id")({
   head: () => ({ meta: [{ title: "Booking Kamar — Stayly" }] }),
@@ -22,19 +25,34 @@ function BookingPage() {
   const params = Route.useParams();
   const roomType = useRoomType(params.id);
   const me = useMe();
+  const qc = useQueryClient();
   const locationState = useRouterState({ select: (s) => s.location.state });
   const searchState = pickBookingSearchState(locationState);
-  const checkin = searchState.checkin ?? "2026-05-12";
-  const checkout = searchState.checkout ?? "2026-05-15";
+  const todayYmd = React.useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+  const tomorrowYmd = React.useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }, []);
+  const checkin = searchState.checkin ?? todayYmd;
+  const checkout = searchState.checkout ?? tomorrowYmd;
   const adults = searchState.adults ?? 2;
   const children = searchState.children ?? 0;
 
   const nights = diffNights(checkin, checkout);
   const pricePerNight = roomType.data?.hargaDefault ?? 0;
-  const subtotal = pricePerNight * nights;
-  const tax = Math.round(subtotal * 0.1);
+  const subtotal = pricePerNight * Math.max(1, nights);
   const deposit = roomType.data?.depositDefault ?? 0;
-  const total = subtotal + tax + deposit;
+  const total = subtotal + deposit;
   const guestLabel = children > 0 ? `${adults} dewasa, ${children} anak` : `${adults} dewasa`;
 
   const createBooking = useMutation({
@@ -53,6 +71,11 @@ function BookingPage() {
       });
     },
     onSuccess: (booking) => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["rooms"] });
+      qc.invalidateQueries({ queryKey: ["payments"] });
+      qc.invalidateQueries({ queryKey: ["deposits"] });
+      qc.invalidateQueries({ queryKey: ["reports"] });
       navigate({ to: "/pembayaran/$id", params: { id: booking._id } });
     },
   });
@@ -128,9 +151,21 @@ function BookingPage() {
             <Card>
               <h2 className="text-base font-bold md:text-lg">Data Tamu Utama</h2>
               <div className="mt-3 grid gap-3 md:mt-4 md:gap-4 sm:grid-cols-2">
-                <Input label="Nama Lengkap" defaultValue={me.data?.namaLengkap ?? ""} disabled />
-                <Input label="No. HP" defaultValue={me.data?.noHp ?? ""} disabled />
-                <Input label="Email" defaultValue={me.data?.email ?? ""} disabled />
+                <Input
+                  label="Nama Lengkap"
+                  defaultValue={me.data?.namaLengkap ?? (me.isLoading ? "Memuat..." : "")}
+                  disabled
+                />
+                <Input
+                  label="No. HP"
+                  defaultValue={me.data?.noHp ?? (me.isLoading ? "Memuat..." : "")}
+                  disabled
+                />
+                <Input
+                  label="Email"
+                  defaultValue={me.data?.email ?? (me.isLoading ? "Memuat..." : "")}
+                  disabled
+                />
                 <Input label="NIK" defaultValue={me.data?.nik ?? ""} disabled />
               </div>
             </Card>
@@ -148,8 +183,8 @@ function BookingPage() {
           <aside className="lg:sticky lg:top-20 lg:self-start">
 	            <Card className="overflow-hidden p-0">
 	              <div className="flex gap-4 p-4 md:p-5">
-	                <img
-	                  src={room.gambarThumbnail}
+                <img
+	                  src={resolveMediaUrl(room.gambarThumbnail) || heroImg}
 	                  alt={room.namaTipe}
 	                  className="h-20 w-24 shrink-0 rounded-xl object-cover"
 	                />
@@ -170,10 +205,9 @@ function BookingPage() {
 	                <h3 className="text-sm font-bold">Rincian Harga</h3>
 	                <div className="mt-3 space-y-2 text-sm">
 	                  <Row
-	                    label={`${formatRupiah(pricePerNight)} × ${nights} malam`}
+	                    label={`${formatRupiah(pricePerNight)} × ${Math.max(1, nights)} malam`}
 	                    value={formatRupiah(subtotal)}
 	                  />
-	                  <Row label="Pajak & layanan" value={formatRupiah(tax)} />
 	                  <Row label="Deposit (refundable)" value={formatRupiah(deposit)} />
 	                </div>
                 <div className="mt-4 flex items-center justify-between border-t border-border pt-4">

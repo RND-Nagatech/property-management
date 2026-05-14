@@ -17,10 +17,15 @@ export const Route = createFileRoute("/admin/")({
   component: Dashboard,
 });
 
+function formatTodayId(date = new Date()) {
+  return date.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
+}
+
 function Dashboard() {
   const dash = useDashboard();
 
   const totals = dash.data?.totals;
+  const trend = dash.data?.pendapatanTrend14 ?? [];
   const stats = totals
     ? [
         {
@@ -65,7 +70,7 @@ function Dashboard() {
         </div>
         <div className="rounded-xl border border-border bg-card px-4 py-2 text-sm">
           <span className="text-muted-foreground">Hari ini, </span>
-          <span className="font-semibold">12 Mei 2026</span>
+          <span className="font-semibold">{formatTodayId()}</span>
         </div>
       </div>
 
@@ -145,44 +150,75 @@ function Dashboard() {
           </div>
           {/* Mini chart */}
           <div className="mt-6 flex h-44 items-end gap-2">
-            {[42, 68, 55, 78, 90, 72, 85, 95, 60, 88, 100, 76, 92, 70].map((h, i) => (
-              <div
-                key={i}
-                className="flex-1 rounded-t-lg bg-gradient-to-t from-accent/30 to-accent"
-                style={{ height: `${h}%` }}
-              />
-            ))}
+            {trend.length > 0 ? (
+              (() => {
+                const max = Math.max(1, ...trend.map((t) => Number(t.total ?? 0)));
+                return trend.map((t) => {
+                  const h = Math.round((Number(t.total ?? 0) / max) * 100);
+                  return (
+                    <div
+                      key={t.day}
+                      className="flex-1 rounded-t-lg bg-gradient-to-t from-accent/30 to-accent"
+                      style={{ height: `${Math.max(4, h)}%` }}
+                      title={`${t.day} • ${formatRupiah(Number(t.total ?? 0))}`}
+                    />
+                  );
+                });
+              })()
+            ) : (
+              <div className="text-sm text-muted-foreground">Belum ada data pendapatan.</div>
+            )}
           </div>
         </div>
 
         <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
           <h3 className="text-base font-bold">Aktivitas Terbaru</h3>
           <ul className="mt-4 space-y-4">
-            {[
-              { i: LogIn, t: "Check-in Budi S.", s: "Deluxe Room · 12:30", c: "text-accent" },
-              {
-                i: DollarSign,
-                t: "Pembayaran diterima",
-                s: "STY-002 · Rp 3.6jt",
-                c: "text-accent",
-              },
-              { i: Wrench, t: "Lapor kerusakan", s: "Kamar 204 · AC", c: "text-warning" },
-              {
-                i: LogOut,
-                t: "Check-out selesai",
-                s: "STY-008 · 10:15",
-                c: "text-muted-foreground",
-              },
-            ].map((a, i) => (
+            {(() => {
+              const items: Array<{ icon: any; title: string; sub: string; color: string }> = [];
+              const latestBooking = (dash.data?.bookingTerbaru ?? [])[0];
+              if (latestBooking) {
+                items.push({
+                  icon: Calendar,
+                  title: `Booking baru ${latestBooking.kodeBooking}`,
+                  sub: `${(latestBooking.roomTypeId as any)?.namaTipe ?? "-"} · ${String(latestBooking.checkIn).slice(0, 10)}`,
+                  color: "text-accent",
+                });
+              }
+              const latestMaintenance = (dash.data?.kerusakanAktif ?? [])[0];
+              if (latestMaintenance) {
+                items.push({
+                  icon: Wrench,
+                  title: `Kerusakan: ${latestMaintenance.judul}`,
+                  sub: `${(latestMaintenance.roomId as any)?.nomorKamar ? `Kamar ${(latestMaintenance.roomId as any).nomorKamar}` : (latestMaintenance.roomTypeId as any)?.namaTipe ?? "-"}`,
+                  color: "text-warning",
+                });
+              }
+              if ((totals?.pembayaranPending ?? 0) > 0) {
+                items.push({
+                  icon: DollarSign,
+                  title: "Pembayaran pending",
+                  sub: `${totals?.pembayaranPending} pembayaran menunggu verifikasi`,
+                  color: "text-accent",
+                });
+              }
+              if (!dash.isLoading && !dash.isError && items.length === 0) {
+                items.push({
+                  icon: ArrowUpRight,
+                  title: "Belum ada aktivitas",
+                  sub: "Aktivitas akan muncul saat ada booking/pembayaran/kerusakan.",
+                  color: "text-muted-foreground",
+                });
+              }
+              return items;
+            })().map((a, i) => (
               <li key={i} className="flex items-start gap-3">
-                <div
-                  className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-secondary ${a.c}`}
-                >
-                  <a.i className="h-4 w-4" />
+                <div className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-secondary ${a.color}`}>
+                  <a.icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-semibold">{a.t}</div>
-                  <div className="text-xs text-muted-foreground">{a.s}</div>
+                  <div className="text-sm font-semibold">{a.title}</div>
+                  <div className="text-xs text-muted-foreground">{a.sub}</div>
                 </div>
               </li>
             ))}

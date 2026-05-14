@@ -2,8 +2,10 @@ import express from "express";
 import mongoose from "mongoose";
 import { Booking } from "../models/Booking.js";
 import { Room } from "../models/Room.js";
+import { requireAdminAuth } from "../auth.js";
 
 export const adminBookingsRouter = express.Router();
+adminBookingsRouter.use(requireAdminAuth);
 
 function isObjectId(value) {
   return typeof value === "string" && mongoose.isValidObjectId(value);
@@ -29,8 +31,10 @@ function mapBookingStatusToLegacy(status) {
 
 adminBookingsRouter.get("/by-code/:bookingCode", async (req, res, next) => {
   try {
-    const kodeBooking = String(req.params.bookingCode ?? "").trim();
-    const booking = await Booking.findOne({ kodeBooking })
+    const kodeBookingRaw = String(req.params.bookingCode ?? "").trim();
+    const kodeBooking = kodeBookingRaw.toUpperCase();
+    // Case-insensitive match to be resilient to scanner output.
+    const booking = await Booking.findOne({ kodeBooking: new RegExp(`^${kodeBooking.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") })
       .populate("roomTypeId")
       .populate("roomId")
       .populate("customerId")
@@ -88,6 +92,34 @@ adminBookingsRouter.post("/:id/check-out", async (req, res, next) => {
     }
 
     booking.bookingStatus = "checked_out";
+    booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
+    await booking.save();
+
+    if (booking.roomId) {
+      await Room.findByIdAndUpdate(booking.roomId, { status: "tersedia" });
+    }
+
+    res.json({ data: booking.toObject() });
+  } catch (err) {
+    next(err);
+  }
+});
+
+adminBookingsRouter.post("/:id/cancel", async (req, res, next) => {
+  try {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "id tidak valid" } });
+    }
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
+
+    const status = booking.bookingStatus ?? (booking.status === "Dibatalkan" ? "cancelled" : undefined);
+    if (status === "checked_in" || status === "checked_out") {
+      return res.status(409).json({ error: { code: "NOT_ALLOWED", message: "Booking sudah check-in/check-out" } });
+    }
+
+    booking.bookingStatus = "cancelled";
+    booking.paymentStatus = booking.paymentStatus === "paid" ? booking.paymentStatus : "failed";
     booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
     await booking.save();
 

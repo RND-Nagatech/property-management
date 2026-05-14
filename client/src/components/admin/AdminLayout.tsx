@@ -1,5 +1,5 @@
-import { Link, useRouterState, Outlet } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, useNavigate, useRouterState, Outlet } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   BedDouble,
@@ -20,8 +20,10 @@ import {
   Search,
   Menu,
   X,
-  ChevronDown,
 } from "lucide-react";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useAdminMe } from "@/hooks/useAdminMe";
+import { AdminMenu } from "@/components/admin/AdminMenu";
 
 type Item = { to: string; label: string; icon: React.ElementType };
 
@@ -62,13 +64,32 @@ const groups: { title?: string; items: Item[] }[] = [
   },
   {
     title: "Sistem",
-    items: [{ to: "/admin/pengaturan", label: "Pengaturan", icon: Settings }],
+    items: [
+      { to: "/admin/pengaturan", label: "Pengaturan", icon: Settings },
+      { to: "/admin/testimoni", label: "Testimoni", icon: FileText },
+      { to: "/admin/rekening", label: "Rekening", icon: CreditCard },
+      { to: "/admin/users", label: "Manage User", icon: Users },
+    ],
   },
 ];
 
 export function AdminLayout() {
   const [open, setOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const adminLoggedIn = useAdminAuth();
+  const me = useAdminMe();
+  const adminLabel = useMemo(() => me.data?.nama || me.data?.username || "Admin", [me.data]);
+
+  useEffect(() => {
+    if (!adminLoggedIn) {
+      // Keep admin vs customer clearly separated.
+      const redirectTo = path === "/admin" ? "/admin/" : path;
+      navigate({ to: "/admin-login", search: { redirectTo } as any });
+    }
+  }, [adminLoggedIn, navigate, path]);
+
+  if (!adminLoggedIn) return null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,16 +165,7 @@ export function AdminLayout() {
                 <Bell className="h-4 w-4" />
                 <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-accent" />
               </button>
-              <div className="flex items-center gap-2 rounded-xl border border-border px-2 py-1.5">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-                  A
-                </div>
-                <div className="hidden md:block text-left">
-                  <div className="text-xs font-semibold leading-tight">Aulia Manager</div>
-                  <div className="text-[10px] text-muted-foreground">Admin</div>
-                </div>
-                <ChevronDown className="hidden md:block h-3 w-3 text-muted-foreground" />
-              </div>
+              <AdminMenu label={adminLabel} />
             </div>
           </div>
         </header>

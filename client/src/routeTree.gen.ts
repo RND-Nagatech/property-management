@@ -10,18 +10,24 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as BookingSayaRouteImport } from './routes/booking-saya'
+import { Route as AdminLoginRouteImport } from './routes/admin-login'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as KamarIndexRouteImport } from './routes/kamar.index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as TestimoniIdRouteImport } from './routes/testimoni.$id'
 import { Route as PembayaranIdRouteImport } from './routes/pembayaran.$id'
 import { Route as KamarIdRouteImport } from './routes/kamar.$id'
 import { Route as BookingIdRouteImport } from './routes/booking.$id'
 import { Route as BookingBerhasilIdRouteImport } from './routes/booking-berhasil.$id'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminTipeKamarRouteImport } from './routes/admin.tipe-kamar'
+import { Route as AdminTestimoniRouteImport } from './routes/admin.testimoni'
 import { Route as AdminTamuRouteImport } from './routes/admin.tamu'
+import { Route as AdminRekeningRouteImport } from './routes/admin.rekening'
 import { Route as AdminPengaturanRouteImport } from './routes/admin.pengaturan'
 import { Route as AdminPembayaranRouteImport } from './routes/admin.pembayaran'
 import { Route as AdminLaporanKeuanganRouteImport } from './routes/admin.laporan-keuangan'
@@ -40,6 +46,11 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LogoutRoute = LogoutRouteImport.update({
+  id: '/logout',
+  path: '/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -48,6 +59,11 @@ const LoginRoute = LoginRouteImport.update({
 const BookingSayaRoute = BookingSayaRouteImport.update({
   id: '/booking-saya',
   path: '/booking-saya',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin-login',
+  path: '/admin-login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -70,6 +86,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const TestimoniIdRoute = TestimoniIdRouteImport.update({
+  id: '/testimoni/$id',
+  path: '/testimoni/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PembayaranIdRoute = PembayaranIdRouteImport.update({
   id: '/pembayaran/$id',
   path: '/pembayaran/$id',
@@ -90,14 +111,29 @@ const BookingBerhasilIdRoute = BookingBerhasilIdRouteImport.update({
   path: '/booking-berhasil/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminTipeKamarRoute = AdminTipeKamarRouteImport.update({
   id: '/tipe-kamar',
   path: '/tipe-kamar',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminTestimoniRoute = AdminTestimoniRouteImport.update({
+  id: '/testimoni',
+  path: '/testimoni',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminTamuRoute = AdminTamuRouteImport.update({
   id: '/tamu',
   path: '/tamu',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminRekeningRoute = AdminRekeningRouteImport.update({
+  id: '/rekening',
+  path: '/rekening',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPengaturanRoute = AdminPengaturanRouteImport.update({
@@ -164,8 +200,10 @@ const AdminBiayaRoute = AdminBiayaRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin-login': typeof AdminLoginRoute
   '/booking-saya': typeof BookingSayaRoute
   '/login': typeof LoginRoute
+  '/logout': typeof LogoutRoute
   '/register': typeof RegisterRoute
   '/admin/biaya': typeof AdminBiayaRoute
   '/admin/booking': typeof AdminBookingRoute
@@ -179,19 +217,25 @@ export interface FileRoutesByFullPath {
   '/admin/laporan-keuangan': typeof AdminLaporanKeuanganRoute
   '/admin/pembayaran': typeof AdminPembayaranRoute
   '/admin/pengaturan': typeof AdminPengaturanRoute
+  '/admin/rekening': typeof AdminRekeningRoute
   '/admin/tamu': typeof AdminTamuRoute
+  '/admin/testimoni': typeof AdminTestimoniRoute
   '/admin/tipe-kamar': typeof AdminTipeKamarRoute
+  '/admin/users': typeof AdminUsersRoute
   '/booking-berhasil/$id': typeof BookingBerhasilIdRoute
   '/booking/$id': typeof BookingIdRoute
   '/kamar/$id': typeof KamarIdRoute
   '/pembayaran/$id': typeof PembayaranIdRoute
+  '/testimoni/$id': typeof TestimoniIdRoute
   '/admin/': typeof AdminIndexRoute
   '/kamar/': typeof KamarIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin-login': typeof AdminLoginRoute
   '/booking-saya': typeof BookingSayaRoute
   '/login': typeof LoginRoute
+  '/logout': typeof LogoutRoute
   '/register': typeof RegisterRoute
   '/admin/biaya': typeof AdminBiayaRoute
   '/admin/booking': typeof AdminBookingRoute
@@ -205,12 +249,16 @@ export interface FileRoutesByTo {
   '/admin/laporan-keuangan': typeof AdminLaporanKeuanganRoute
   '/admin/pembayaran': typeof AdminPembayaranRoute
   '/admin/pengaturan': typeof AdminPengaturanRoute
+  '/admin/rekening': typeof AdminRekeningRoute
   '/admin/tamu': typeof AdminTamuRoute
+  '/admin/testimoni': typeof AdminTestimoniRoute
   '/admin/tipe-kamar': typeof AdminTipeKamarRoute
+  '/admin/users': typeof AdminUsersRoute
   '/booking-berhasil/$id': typeof BookingBerhasilIdRoute
   '/booking/$id': typeof BookingIdRoute
   '/kamar/$id': typeof KamarIdRoute
   '/pembayaran/$id': typeof PembayaranIdRoute
+  '/testimoni/$id': typeof TestimoniIdRoute
   '/admin': typeof AdminIndexRoute
   '/kamar': typeof KamarIndexRoute
 }
@@ -218,8 +266,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin-login': typeof AdminLoginRoute
   '/booking-saya': typeof BookingSayaRoute
   '/login': typeof LoginRoute
+  '/logout': typeof LogoutRoute
   '/register': typeof RegisterRoute
   '/admin/biaya': typeof AdminBiayaRoute
   '/admin/booking': typeof AdminBookingRoute
@@ -233,12 +283,16 @@ export interface FileRoutesById {
   '/admin/laporan-keuangan': typeof AdminLaporanKeuanganRoute
   '/admin/pembayaran': typeof AdminPembayaranRoute
   '/admin/pengaturan': typeof AdminPengaturanRoute
+  '/admin/rekening': typeof AdminRekeningRoute
   '/admin/tamu': typeof AdminTamuRoute
+  '/admin/testimoni': typeof AdminTestimoniRoute
   '/admin/tipe-kamar': typeof AdminTipeKamarRoute
+  '/admin/users': typeof AdminUsersRoute
   '/booking-berhasil/$id': typeof BookingBerhasilIdRoute
   '/booking/$id': typeof BookingIdRoute
   '/kamar/$id': typeof KamarIdRoute
   '/pembayaran/$id': typeof PembayaranIdRoute
+  '/testimoni/$id': typeof TestimoniIdRoute
   '/admin/': typeof AdminIndexRoute
   '/kamar/': typeof KamarIndexRoute
 }
@@ -247,8 +301,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin-login'
     | '/booking-saya'
     | '/login'
+    | '/logout'
     | '/register'
     | '/admin/biaya'
     | '/admin/booking'
@@ -262,19 +318,25 @@ export interface FileRouteTypes {
     | '/admin/laporan-keuangan'
     | '/admin/pembayaran'
     | '/admin/pengaturan'
+    | '/admin/rekening'
     | '/admin/tamu'
+    | '/admin/testimoni'
     | '/admin/tipe-kamar'
+    | '/admin/users'
     | '/booking-berhasil/$id'
     | '/booking/$id'
     | '/kamar/$id'
     | '/pembayaran/$id'
+    | '/testimoni/$id'
     | '/admin/'
     | '/kamar/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin-login'
     | '/booking-saya'
     | '/login'
+    | '/logout'
     | '/register'
     | '/admin/biaya'
     | '/admin/booking'
@@ -288,20 +350,26 @@ export interface FileRouteTypes {
     | '/admin/laporan-keuangan'
     | '/admin/pembayaran'
     | '/admin/pengaturan'
+    | '/admin/rekening'
     | '/admin/tamu'
+    | '/admin/testimoni'
     | '/admin/tipe-kamar'
+    | '/admin/users'
     | '/booking-berhasil/$id'
     | '/booking/$id'
     | '/kamar/$id'
     | '/pembayaran/$id'
+    | '/testimoni/$id'
     | '/admin'
     | '/kamar'
   id:
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin-login'
     | '/booking-saya'
     | '/login'
+    | '/logout'
     | '/register'
     | '/admin/biaya'
     | '/admin/booking'
@@ -315,12 +383,16 @@ export interface FileRouteTypes {
     | '/admin/laporan-keuangan'
     | '/admin/pembayaran'
     | '/admin/pengaturan'
+    | '/admin/rekening'
     | '/admin/tamu'
+    | '/admin/testimoni'
     | '/admin/tipe-kamar'
+    | '/admin/users'
     | '/booking-berhasil/$id'
     | '/booking/$id'
     | '/kamar/$id'
     | '/pembayaran/$id'
+    | '/testimoni/$id'
     | '/admin/'
     | '/kamar/'
   fileRoutesById: FileRoutesById
@@ -328,13 +400,16 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  AdminLoginRoute: typeof AdminLoginRoute
   BookingSayaRoute: typeof BookingSayaRoute
   LoginRoute: typeof LoginRoute
+  LogoutRoute: typeof LogoutRoute
   RegisterRoute: typeof RegisterRoute
   BookingBerhasilIdRoute: typeof BookingBerhasilIdRoute
   BookingIdRoute: typeof BookingIdRoute
   KamarIdRoute: typeof KamarIdRoute
   PembayaranIdRoute: typeof PembayaranIdRoute
+  TestimoniIdRoute: typeof TestimoniIdRoute
   KamarIndexRoute: typeof KamarIndexRoute
 }
 
@@ -345,6 +420,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logout': {
+      id: '/logout'
+      path: '/logout'
+      fullPath: '/logout'
+      preLoaderRoute: typeof LogoutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -359,6 +441,13 @@ declare module '@tanstack/react-router' {
       path: '/booking-saya'
       fullPath: '/booking-saya'
       preLoaderRoute: typeof BookingSayaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-login': {
+      id: '/admin-login'
+      path: '/admin-login'
+      fullPath: '/admin-login'
+      preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -389,6 +478,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/testimoni/$id': {
+      id: '/testimoni/$id'
+      path: '/testimoni/$id'
+      fullPath: '/testimoni/$id'
+      preLoaderRoute: typeof TestimoniIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pembayaran/$id': {
       id: '/pembayaran/$id'
       path: '/pembayaran/$id'
@@ -417,6 +513,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookingBerhasilIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/tipe-kamar': {
       id: '/admin/tipe-kamar'
       path: '/tipe-kamar'
@@ -424,11 +527,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminTipeKamarRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/testimoni': {
+      id: '/admin/testimoni'
+      path: '/testimoni'
+      fullPath: '/admin/testimoni'
+      preLoaderRoute: typeof AdminTestimoniRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/tamu': {
       id: '/admin/tamu'
       path: '/tamu'
       fullPath: '/admin/tamu'
       preLoaderRoute: typeof AdminTamuRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/rekening': {
+      id: '/admin/rekening'
+      path: '/rekening'
+      fullPath: '/admin/rekening'
+      preLoaderRoute: typeof AdminRekeningRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/pengaturan': {
@@ -531,8 +648,11 @@ interface AdminRouteChildren {
   AdminLaporanKeuanganRoute: typeof AdminLaporanKeuanganRoute
   AdminPembayaranRoute: typeof AdminPembayaranRoute
   AdminPengaturanRoute: typeof AdminPengaturanRoute
+  AdminRekeningRoute: typeof AdminRekeningRoute
   AdminTamuRoute: typeof AdminTamuRoute
+  AdminTestimoniRoute: typeof AdminTestimoniRoute
   AdminTipeKamarRoute: typeof AdminTipeKamarRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -549,8 +669,11 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLaporanKeuanganRoute: AdminLaporanKeuanganRoute,
   AdminPembayaranRoute: AdminPembayaranRoute,
   AdminPengaturanRoute: AdminPengaturanRoute,
+  AdminRekeningRoute: AdminRekeningRoute,
   AdminTamuRoute: AdminTamuRoute,
+  AdminTestimoniRoute: AdminTestimoniRoute,
   AdminTipeKamarRoute: AdminTipeKamarRoute,
+  AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
@@ -559,13 +682,16 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  AdminLoginRoute: AdminLoginRoute,
   BookingSayaRoute: BookingSayaRoute,
   LoginRoute: LoginRoute,
+  LogoutRoute: LogoutRoute,
   RegisterRoute: RegisterRoute,
   BookingBerhasilIdRoute: BookingBerhasilIdRoute,
   BookingIdRoute: BookingIdRoute,
   KamarIdRoute: KamarIdRoute,
   PembayaranIdRoute: PembayaranIdRoute,
+  TestimoniIdRoute: TestimoniIdRoute,
   KamarIndexRoute: KamarIndexRoute,
 }
 export const routeTree = rootRouteImport

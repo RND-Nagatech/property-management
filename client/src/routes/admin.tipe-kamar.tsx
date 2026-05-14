@@ -28,11 +28,13 @@ type FormState = {
   fasilitasUtama: string;
   fasilitasKamar: string;
   fasilitasKamarMandi: string;
-  depositDefault: string;
+  depositType: "MONEY" | "DOCUMENT";
+  depositAmount: string;
+  depositDocumentType: "" | "KTP" | "PASSPORT" | "SIM";
   jamCheckIn: string;
   jamCheckOut: string;
   gambarThumbnail: string;
-  galeriGambar: string;
+  galeriGambar: string[];
 };
 
 const emptyForm: FormState = {
@@ -47,12 +49,32 @@ const emptyForm: FormState = {
   fasilitasUtama: "AC, WiFi Gratis, TV LED",
   fasilitasKamar: "",
   fasilitasKamarMandi: "",
-  depositDefault: "300000",
+  depositType: "MONEY",
+  depositAmount: "300000",
+  depositDocumentType: "",
   jamCheckIn: "14:00",
   jamCheckOut: "12:00",
   gambarThumbnail: "",
-  galeriGambar: "",
+  galeriGambar: [],
 };
+
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Gagal membaca file"));
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+  });
+}
+
+function normalizeSlugLocal(value: string): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
 
 function TipeKamarPage() {
   const roomTypes = useRoomTypes(false);
@@ -63,15 +85,23 @@ function TipeKamarPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<RoomType | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [uploading, setUploading] = useState(false);
+  const [slugTouched, setSlugTouched] = useState(false);
 
   function openAdd() {
     setEditing(null);
     setForm(emptyForm);
+    setSlugTouched(false);
     setOpen(true);
   }
 
   function openEdit(r: RoomType) {
     setEditing(r);
+    const legacyDepositAmount = String(r.depositDefault ?? 0);
+    const depositType = r.deposit?.type ?? (Number(r.depositDefault ?? 0) > 0 ? "MONEY" : "MONEY");
+    const depositAmount = String(r.deposit?.amount ?? r.depositDefault ?? 0);
+    const depositDocumentType =
+      depositType === "DOCUMENT" ? String(r.deposit?.documentType ?? "") : "";
     setForm({
       namaTipe: r.namaTipe,
       slug: r.slug,
@@ -84,12 +114,15 @@ function TipeKamarPage() {
       fasilitasUtama: (r.fasilitasUtama ?? []).join(", "),
       fasilitasKamar: (r.fasilitasKamar ?? []).join(", "),
       fasilitasKamarMandi: (r.fasilitasKamarMandi ?? []).join(", "),
-      depositDefault: String(r.depositDefault ?? 0),
+      depositType,
+      depositAmount: depositType === "MONEY" ? depositAmount : legacyDepositAmount,
+      depositDocumentType: depositDocumentType as any,
       jamCheckIn: r.jamCheckIn ?? "14:00",
       jamCheckOut: r.jamCheckOut ?? "12:00",
       gambarThumbnail: r.gambarThumbnail ?? "",
-      galeriGambar: (r.galeriGambar ?? []).join(", "),
+      galeriGambar: r.galeriGambar ?? [],
     });
+    setSlugTouched(true);
     setOpen(true);
   }
 
@@ -109,9 +142,30 @@ function TipeKamarPage() {
       return;
     }
 
+    const baseSlug = normalizeSlugLocal(form.slug || form.namaTipe);
+    let nextSlug = baseSlug;
+    const used = new Set(
+      (roomTypes.data ?? [])
+        .filter((t) => (editing ? t._id !== editing._id : true))
+        .map((t) => t.slug)
+    );
+    let n = 2;
+    while (nextSlug && used.has(nextSlug)) {
+      nextSlug = `${baseSlug}-${n++}`;
+    }
+
+    const deposit =
+      form.depositType === "MONEY"
+        ? { type: "MONEY" as const, amount: Number(form.depositAmount || "0") || 0, documentType: null }
+        : {
+            type: "DOCUMENT" as const,
+            amount: 0,
+            documentType: (form.depositDocumentType || "KTP") as any,
+          };
+
     const payload: Partial<RoomType> = {
       namaTipe: form.namaTipe,
-      slug: form.slug,
+      slug: nextSlug,
       hargaDefault: Number(form.hargaDefault),
       kapasitas: Number(form.kapasitas),
       ukuranKamar: Number(form.ukuranKamar) || 20,
@@ -130,14 +184,13 @@ function TipeKamarPage() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
-      depositDefault: Number(form.depositDefault) || 0,
+      // Backward-compatible: keep depositDefault for reports/old UI
+      depositDefault: deposit.type === "MONEY" ? deposit.amount : 0,
+      deposit,
       jamCheckIn: form.jamCheckIn,
       jamCheckOut: form.jamCheckOut,
       gambarThumbnail: form.gambarThumbnail,
-      galeriGambar: form.galeriGambar
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
+      galeriGambar: form.galeriGambar,
     };
 
     try {
@@ -259,13 +312,22 @@ function TipeKamarPage() {
             <Input
               label="Nama Tipe Kamar"
               value={form.namaTipe}
-              onChange={(v) => setForm({ ...form, namaTipe: v })}
+              onChange={(v) => {
+                setForm((p) => ({
+                  ...p,
+                  namaTipe: v,
+                  slug: slugTouched ? p.slug : normalizeSlugLocal(v),
+                }));
+              }}
               placeholder="Deluxe Room"
             />
             <Input
               label="Slug"
               value={form.slug}
-              onChange={(v) => setForm({ ...form, slug: v })}
+              onChange={(v) => {
+                setSlugTouched(true);
+                setForm({ ...form, slug: v });
+              }}
               placeholder="deluxe-room"
             />
             <div className="grid grid-cols-2 gap-3">
@@ -276,12 +338,50 @@ function TipeKamarPage() {
                 onChange={(v) => setForm({ ...form, hargaDefault: v })}
                 placeholder="850000"
               />
-              <Input
-                label="Deposit Default (Rp)"
-                type="number"
-                value={form.depositDefault}
-                onChange={(v) => setForm({ ...form, depositDefault: v })}
-              />
+              <div className="space-y-2">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-muted-foreground">Deposit</span>
+                  <select
+                    value={form.depositType}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        depositType: e.target.value as any,
+                      }))
+                    }
+                    className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                  >
+                    <option value="MONEY">Uang</option>
+                    <option value="DOCUMENT">Dokumen</option>
+                  </select>
+                </label>
+                {form.depositType === "MONEY" ? (
+                  <Input
+                    label="Nominal Deposit (Rp)"
+                    type="number"
+                    value={form.depositAmount}
+                    onChange={(v) => setForm({ ...form, depositAmount: v })}
+                  />
+                ) : (
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                      Jenis Dokumen
+                    </span>
+                    <select
+                      value={form.depositDocumentType}
+                      onChange={(e) => setForm({ ...form, depositDocumentType: e.target.value as any })}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                    >
+                      <option value="KTP">KTP</option>
+                      <option value="PASSPORT">Paspor</option>
+                      <option value="SIM">SIM</option>
+                    </select>
+                  </label>
+                )}
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Preview harga: {formatRupiah(Number(form.hargaDefault || "0") || 0)}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <Input
@@ -337,18 +437,119 @@ function TipeKamarPage() {
                 placeholder="12:00"
               />
             </div>
-            <Input
-              label="Thumbnail URL"
-              value={form.gambarThumbnail}
-              onChange={(v) => setForm({ ...form, gambarThumbnail: v })}
-              placeholder="/assets/room-deluxe.jpg"
-            />
-            <Input
-              label="Galeri URL (pisah koma)"
-              value={form.galeriGambar}
-              onChange={(v) => setForm({ ...form, galeriGambar: v })}
-              placeholder="/assets/room-deluxe.jpg, /assets/room-suite.jpg"
-            />
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1 block text-xs font-semibold text-muted-foreground">Thumbnail</div>
+                <div className="grid gap-3 sm:grid-cols-[140px_1fr] items-start">
+                  <div className="overflow-hidden rounded-xl border border-border bg-secondary/40">
+                    {form.gambarThumbnail ? (
+                      <img
+                        src={form.gambarThumbnail}
+                        alt="Thumbnail"
+                        className="h-[100px] w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-[100px] items-center justify-center text-xs text-muted-foreground">
+                        Tidak ada gambar
+                      </div>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          setUploading(true);
+                          const dataUrl = await readFileAsDataUrl(file);
+                          setForm((p) => ({ ...p, gambarThumbnail: dataUrl }));
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Gagal upload thumbnail");
+                        } finally {
+                          setUploading(false);
+                          e.currentTarget.value = "";
+                        }
+                      }}
+                      className="block w-full text-sm"
+                    />
+                    <Input
+                      label="Atau isi URL Thumbnail"
+                      value={form.gambarThumbnail}
+                      onChange={(v) => setForm({ ...form, gambarThumbnail: v })}
+                      placeholder="/assets/room-deluxe.jpg"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 block text-xs font-semibold text-muted-foreground">Galeri</div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length === 0) return;
+                    try {
+                      setUploading(true);
+                      const urls = await Promise.all(files.map((f) => readFileAsDataUrl(f)));
+                      setForm((p) => ({ ...p, galeriGambar: [...p.galeriGambar, ...urls] }));
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Gagal upload galeri");
+                    } finally {
+                      setUploading(false);
+                      e.currentTarget.value = "";
+                    }
+                  }}
+                  className="block w-full text-sm"
+                />
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {form.galeriGambar.slice(0, 9).map((src, idx) => (
+                    <div key={`${idx}-${src.slice(0, 20)}`} className="relative overflow-hidden rounded-xl border border-border">
+                      <img src={src} alt="" className="h-24 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setForm((p) => ({
+                            ...p,
+                            galeriGambar: p.galeriGambar.filter((_s, i) => i !== idx),
+                          }));
+                        }}
+                        className="absolute right-1 top-1 rounded-lg bg-black/55 p-1 text-white"
+                        title="Hapus"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                      Atau isi URL Galeri (1 baris = 1 URL)
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={form.galeriGambar.join("\n")}
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          galeriGambar: e.target.value
+                            .split("\n")
+                            .map((s) => s.trim())
+                            .filter(Boolean),
+                        }))
+                      }
+                      placeholder="/assets/room-deluxe.jpg\n/assets/room-suite.jpg"
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -368,6 +569,7 @@ function TipeKamarPage() {
               </button>
               <button
                 type="submit"
+                disabled={uploading}
                 className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground hover:opacity-90"
               >
                 {editing ? "Simpan" : "Tambah"}

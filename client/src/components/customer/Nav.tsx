@@ -1,15 +1,25 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, BedDouble, Calendar, User } from "lucide-react";
+import { Home, BedDouble, Calendar, User, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useMe } from "@/hooks/useMe";
+import { ChevronDown } from "lucide-react";
+import { CustomerMenu } from "@/components/customer/CustomerMenu";
 
-const items = [
-  { to: "/", label: "Beranda", icon: Home },
-  { to: "/kamar", label: "Kamar", icon: BedDouble },
-  { to: "/booking-saya", label: "Booking", icon: Calendar },
-  { to: "/login", label: "Akun", icon: User },
-];
+function getNavItems(isLoggedIn: boolean) {
+  return [
+    { to: "/", label: "Beranda", icon: Home },
+    { to: "/kamar", label: "Kamar", icon: BedDouble },
+    { to: "/booking-saya", label: "Booking", icon: Calendar },
+    isLoggedIn
+      ? { to: "/logout", label: "Keluar", icon: LogOut }
+      : { to: "/login", label: "Akun", icon: User },
+  ];
+}
 
 export function MobileNav() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const isLoggedIn = useAuth();
+  const items = getNavItems(isLoggedIn);
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border glass md:hidden">
       <ul className="grid grid-cols-4">
@@ -35,6 +45,8 @@ export function MobileNav() {
 }
 
 export function TopBar() {
+  const isLoggedIn = useAuth();
+  const { data: me } = useMe();
   return (
     <header className="sticky top-0 z-30 glass border-b border-border">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -59,15 +71,23 @@ export function TopBar() {
           </Link>
         </nav>
         <div className="flex items-center gap-2">
-          <Link to="/login" className="hidden md:inline-flex text-sm font-medium hover:text-accent">
-            Masuk
-          </Link>
-          <Link
-            to="/register"
-            className="inline-flex items-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-          >
-            Daftar
-          </Link>
+          {isLoggedIn ? (
+            <>
+              {me?.namaLengkap && <CustomerMenu namaLengkap={me.namaLengkap} />}
+            </>
+          ) : (
+            <>
+              <Link to="/login" className="inline-flex text-sm font-medium hover:text-accent">
+                Masuk
+              </Link>
+              <Link
+                to="/register"
+                className="inline-flex items-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                Daftar
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

@@ -1,5 +1,13 @@
+// Format metode pembayaran agar lebih user-friendly
+function formatMetodePembayaran(metode?: string) {
+  if (!metode) return "-";
+  if (metode.toLowerCase() === "qris") return "QRIS";
+  return metode
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader } from "./admin.tipe-kamar";
+import { PageHeader, Input } from "./admin.tipe-kamar";
 import { Download, ArrowUpRight } from "lucide-react";
 import { formatRupiah } from "@/lib/currency";
 import { useFinanceReport } from "@/hooks/useReports";
@@ -12,7 +20,12 @@ export const Route = createFileRoute("/admin/laporan-keuangan")({
 });
 
 function Laporan() {
-  const report = useFinanceReport();
+  // Filter tanggal default hari ini
+  const today = new Date().toISOString().slice(0, 10);
+  const [from, setFrom] = React.useState(today);
+  const [to, setTo] = React.useState(today);
+  // Laporan keuangan dengan filter tanggal
+  const report = useFinanceReport({ from, to });
   const settings = useSettings();
   const propertyName = React.useMemo(() => {
     const map = new Map<string, unknown>();
@@ -54,8 +67,8 @@ function Laporan() {
       <tr><th>Pendapatan Bulanan</th><td class="right">${formatRupiah(report.data?.pendapatanBulanan ?? 0)}</td></tr>
       <tr><th>Kas Operasional Masuk</th><td class="right">${formatRupiah(report.data?.kasMasukBulanan ?? 0)}</td></tr>
       <tr><th>Kas Operasional Keluar</th><td class="right">${formatRupiah(report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0)}</td></tr>
-      <tr><th>Saldo Kas Operasional</th><td class="right">${formatRupiah(report.data?.saldoKasBulanan ?? 0)}</td></tr>
-      <tr><th>Laba Bersih (Pendapatan - Kas Keluar)</th><td class="right">${formatRupiah(report.data?.labaBulanan ?? 0)}</td></tr>
+      <tr><th>Saldo Kas Operasional</th><td class="right">${formatRupiah((report.data?.kasMasukBulanan ?? 0) - (report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0))}</td></tr>
+      <tr><th>Laba Bersih (Pendapatan + Saldo Kas Operasional)</th><td class="right">${formatRupiah((report.data?.pendapatanBulanan ?? 0) + ((report.data?.kasMasukBulanan ?? 0) - (report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0)))}</td></tr>
     </tbody>
   </table>
 
@@ -66,7 +79,7 @@ function Laporan() {
       ${rowsPayments
         .map(
           (p) =>
-            `<tr><td>${String(p.createdAt ?? "").slice(0, 10)}</td><td>${p.kodeBooking ?? "-"}</td><td>${p.invoice ?? "-"}</td><td>${p.metode ?? "-"}</td><td class="right">${formatRupiah(p.jumlah ?? 0)}</td><td>${p.status ?? "-"}</td></tr>`
+            `<tr><td>${String(p.createdAt ?? "").slice(0, 10)}</td><td>${p.kodeBooking ?? "-"}</td><td>${p.invoice ?? "-"}</td><td>${formatMetodePembayaran(p.metode)}</td><td class="right">${formatRupiah(p.jumlah ?? 0)}</td><td>${p.status ?? "-"}</td></tr>`
         )
         .join("") || `<tr><td colspan="6">Tidak ada data pembayaran.</td></tr>`}
     </tbody>
@@ -74,14 +87,14 @@ function Laporan() {
 
   <h2 style="margin-top:18px">Kas Operasional</h2>
   <table>
-    <thead><tr><th>Tanggal</th><th>Tipe</th><th>Kategori</th><th>Deskripsi</th><th class="right">Nominal</th><th>Metode</th></tr></thead>
+    <thead><tr><th>Tanggal</th><th>Tipe</th><th>Kategori</th><th>Deskripsi</th><th class="right">Nominal</th></tr></thead>
     <tbody>
       ${rowsExpenses
         .map(
           (e) =>
-            `<tr><td>${String(e.tanggal ?? "").slice(0, 10)}</td><td>${(e).tipeTransaksi === "IN" ? "Uang Masuk" : "Uang Keluar"}</td><td>${e.kategori ?? "-"}</td><td>${e.deskripsi ?? "-"}</td><td class="right">${formatRupiah(e.jumlah ?? 0)}</td><td>${(e).metode ?? "-"}</td></tr>`
+            `<tr><td>${String(e.tanggal ?? "").slice(0, 10)}</td><td>${(e).tipeTransaksi === "IN" ? "Uang Masuk" : "Uang Keluar"}</td><td>${e.kategori ?? "-"}</td><td>${e.deskripsi ?? "-"}</td><td class="right">${formatRupiah(e.jumlah ?? 0)}</td></tr>`
         )
-        .join("") || `<tr><td colspan="6">Tidak ada data kas operasional.</td></tr>`}
+        .join("") || `<tr><td colspan="5">Tidak ada data kas operasional.</td></tr>`}
     </tbody>
   </table>
 
@@ -114,6 +127,20 @@ function Laporan() {
     1,
     ...(report.data?.byRoomType ?? []).map((r) => r.totalBooking ?? 0),
   );
+  // Deteksi data kosong
+  const isEmpty =
+    !report.isLoading &&
+    !report.isError &&
+    [
+      report.data?.pendapatanBulanan,
+      report.data?.kasMasukBulanan,
+      report.data?.kasKeluarBulanan,
+      report.data?.biayaBulanan,
+      report.data?.payments?.length,
+      report.data?.expenses?.length,
+      report.data?.byRoomType?.length,
+    ].every((v) => !v || v === 0);
+
   return (
     <div className="space-y-6">
       <PageHeader title="Laporan Keuangan" desc="Pendapatan, biaya, dan laba">
@@ -126,6 +153,29 @@ function Laporan() {
         </button>
       </PageHeader>
 
+      {/* Filter tanggal */}
+      <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] mb-2">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Input
+            label="Dari tanggal"
+            type="date"
+            value={from}
+            onChange={setFrom}
+          />
+          <Input
+            label="Sampai tanggal"
+            type="date"
+            value={to}
+            onChange={setTo}
+          />
+        </div>
+      </div>
+
+      {isEmpty && (
+        <div className="rounded-2xl bg-card p-5 text-center text-destructive font-semibold">
+          Data laporan tidak tersedia
+        </div>
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         {[
           { l: "Pendapatan", v: report.data?.pendapatanBulanan ?? 0, c: "text-accent" },
@@ -146,81 +196,12 @@ function Laporan() {
         ))}
       </div>
 
-      <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
-        <h3 className="text-base font-bold">Ringkasan Bulanan</h3>
-        {report.isLoading && (
-          <div className="mt-4 text-sm text-muted-foreground">Memuat laporan...</div>
-        )}
-        {report.isError && (
-          <div className="mt-4 text-sm text-destructive">
-            {report.error instanceof Error ? report.error.message : "Gagal memuat laporan"}
-          </div>
-        )}
-        <div className="mt-5 flex h-56 items-end gap-3">
-          {["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"].map(
-            (m, i) => {
-              const h = [60, 70, 55, 80, 95, 88, 72, 85, 78, 92, 100, 88][i];
-              return (
-                <div key={m} className="flex flex-1 flex-col items-center gap-2">
-                  <div
-                    className="w-full rounded-t-xl bg-gradient-to-t from-accent/30 to-accent"
-                    style={{ height: `${h}%` }}
-                  />
-                  <div className="text-[10px] font-medium text-muted-foreground">{m}</div>
-                </div>
-              );
-            },
-          )}
-        </div>
-      </div>
+        {/* Card Ringkasan Bulanan di-hide sesuai permintaan */}
+
+      {/* Bagian Okupansi & Pendapatan per Tipe di-hide sesuai permintaan */}
 
       <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] overflow-x-auto">
-        <h3 className="text-base font-bold mb-4">Okupansi & Pendapatan per Tipe</h3>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-xs uppercase text-muted-foreground">
-              <th className="pb-3 font-semibold">Tipe Kamar</th>
-              <th className="pb-3 font-semibold">Booking</th>
-              <th className="pb-3 font-semibold">Okupansi</th>
-              <th className="pb-3 font-semibold">Pendapatan</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {(report.data?.byRoomType ?? []).map((r) => (
-              <tr key={r.roomTypeId}>
-                <td className="py-3.5 font-semibold">{r.namaTipe ?? "-"}</td>
-                <td className="py-3.5">{r.totalBooking}</td>
-                <td className="py-3.5">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-24 overflow-hidden rounded-full bg-secondary">
-                      <div
-                        className="h-full bg-accent"
-                        style={{ width: `${Math.min(100, (r.totalBooking / maxBooking) * 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-medium">
-                      {Math.round((r.totalBooking / maxBooking) * 100)}%
-                    </span>
-                  </div>
-                </td>
-                <td className="py-3.5 font-semibold">{formatRupiah(r.pendapatan ?? 0)}</td>
-              </tr>
-            ))}
-            {!report.isLoading &&
-              !report.isError &&
-              (report.data?.byRoomType?.length ?? 0) === 0 && (
-                <tr>
-                  <td colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                    Belum ada data tipe kamar.
-                  </td>
-                </tr>
-              )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] overflow-x-auto">
-        <h3 className="text-base font-bold mb-4">Detail Pembayaran (Bulan ini)</h3>
+        <h3 className="text-base font-bold mb-4">Detail Pembayaran</h3>
         {report.isLoading && <div className="text-sm text-muted-foreground">Memuat...</div>}
         {report.isError && (
           <div className="text-sm text-destructive">
@@ -245,7 +226,7 @@ function Laporan() {
                   <td className="py-3.5 text-muted-foreground">{String(p.createdAt ?? "").slice(0, 10)}</td>
                   <td className="py-3.5 font-medium">{p.kodeBooking ?? "-"}</td>
                   <td className="py-3.5">{p.invoice ?? "-"}</td>
-                  <td className="py-3.5">{p.metode ?? "-"}</td>
+                  <td className="py-3.5">{formatMetodePembayaran(p.metode)}</td>
                   <td className="py-3.5 text-right font-semibold">{formatRupiah(p.jumlah ?? 0)}</td>
                   <td className="py-3.5">{p.status ?? "-"}</td>
                 </tr>
@@ -263,7 +244,7 @@ function Laporan() {
       </div>
 
       <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] overflow-x-auto">
-        <h3 className="text-base font-bold mb-4">Detail Kas Operasional (Bulan ini)</h3>
+        <h3 className="text-base font-bold mb-4">Detail Kas Operasional</h3>
         {!report.isLoading && !report.isError && (
           <table className="w-full text-sm">
             <thead>

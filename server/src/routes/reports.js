@@ -21,13 +21,32 @@ function parseMonth(value) {
 reportsRouter.get("/finance", async (req, res, next) => {
   try {
     const now = new Date();
-    const parsed = parseMonth(req.query.month);
-    const year = parsed?.year ?? now.getFullYear();
-    const month = parsed?.month ?? now.getMonth() + 1;
-    const { start, end } = getJakartaMonthRange(year, month);
-    const { start: dayStart, end: dayEnd } = getJakartaDayRange(now);
-
     const paidStatuses = ["Terverifikasi", "paid"];
+
+    // Support filter by from/to (date range) or fallback to month
+    let start, end;
+    if (req.query.from || req.query.to) {
+      // If from/to provided, use them as date range
+      start = req.query.from ? new Date(req.query.from) : new Date("2000-01-01");
+      if (req.query.to) {
+        const toDate = new Date(req.query.to);
+        // Jika from==to, end = to+1 hari
+        if (req.query.from && req.query.from === req.query.to) {
+          end = new Date(toDate.getTime() + 24 * 60 * 60 * 1000);
+        } else {
+          end = toDate;
+        }
+      } else {
+        end = new Date("2100-01-01");
+      }
+    } else {
+      // Fallback: use month
+      const parsed = parseMonth(req.query.month);
+      const year = parsed?.year ?? now.getFullYear();
+      const month = parsed?.month ?? now.getMonth() + 1;
+      ({ start, end } = getJakartaMonthRange(year, month));
+    }
+    const { start: dayStart, end: dayEnd } = getJakartaDayRange(now);
 
     const [incomeMonthAgg, incomeDayAgg, cashMonthAgg, cashDayAgg, depositCutAgg] =
       await Promise.all([
@@ -142,7 +161,7 @@ reportsRouter.get("/finance", async (req, res, next) => {
 
     res.json({
       data: {
-        month: `${year}-${String(month).padStart(2, "0")}`,
+        month: req.query.month || null,
         pendapatanHariIni,
         pendapatanBulanan,
         // Legacy fields: biaya = kas keluar (uang keluar)
@@ -169,8 +188,12 @@ reportsRouter.get("/finance", async (req, res, next) => {
 
 reportsRouter.get("/bookings", async (req, res, next) => {
   try {
-    const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
-    const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
+    let from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
+    let to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
+    // Jika from dan to sama persis (string), tambahkan 1 hari ke to
+    if (from && to && req.query.from === req.query.to) {
+      to = new Date(to.getTime() + 24 * 60 * 60 * 1000);
+    }
     const match = {};
     if (from && !Number.isNaN(from.getTime())) match.createdAt = { ...(match.createdAt ?? {}), $gte: from };
     if (to && !Number.isNaN(to.getTime())) match.createdAt = { ...(match.createdAt ?? {}), $lt: to };

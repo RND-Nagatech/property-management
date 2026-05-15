@@ -64,10 +64,13 @@ export type BookingReport = {
   }>;
 };
 
-export function useFinanceReport(month?: string) {
-  const qs = month ? `?month=${encodeURIComponent(month)}` : "";
+export function useFinanceReport(params?: { from?: string; to?: string }) {
+  const search = new URLSearchParams();
+  if (params?.from) search.set("from", params.from);
+  if (params?.to) search.set("to", params.to);
+  const qs = search.toString() ? `?${search.toString()}` : "";
   return useQuery({
-    queryKey: ["reports", "finance", { month: month ?? null }],
+    queryKey: ["reports", "finance", { from: params?.from ?? null, to: params?.to ?? null }],
     queryFn: () => apiRequest<FinanceReport>(`/reports/finance${qs}`),
   });
 }

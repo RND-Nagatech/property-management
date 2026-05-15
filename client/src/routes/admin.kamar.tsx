@@ -150,7 +150,7 @@ function KamarPage() {
                   <div className="text-xs text-muted-foreground">Kamar</div>
                   <div className="text-xl font-bold">{k.nomorKamar}</div>
                 </div>
-                <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                <div className="flex gap-1">
                   <button
                     onClick={() => openEdit(k)}
                     className="text-muted-foreground hover:text-foreground"

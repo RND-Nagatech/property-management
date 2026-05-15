@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader } from "./admin.tipe-kamar";
+import { PageHeader, Input } from "./admin.tipe-kamar";
 import { Download } from "lucide-react";
 import { useBookingReport } from "@/hooks/useReports";
 import { useSettings } from "@/hooks/useSettings";
 import * as React from "react";
 import { formatRupiah } from "@/lib/currency";
+import { formatBookingStatus } from "@/lib/booking-status";
 
 export const Route = createFileRoute("/admin/laporan-booking")({
   head: () => ({ meta: [{ title: "Laporan Booking" }] }),
@@ -12,7 +13,11 @@ export const Route = createFileRoute("/admin/laporan-booking")({
 });
 
 function Lap() {
-  const report = useBookingReport();
+  // Filter tanggal default hari ini
+  const today = new Date().toISOString().slice(0, 10);
+  const [from, setFrom] = React.useState(today);
+  const [to, setTo] = React.useState(today);
+  const report = useBookingReport({ from, to });
   const settings = useSettings();
   const propertyName = React.useMemo(() => {
     const map = new Map<string, unknown>();
@@ -46,7 +51,7 @@ th{background:#f9fafb}
 ${rows
   .map(
     (b) =>
-      `<tr><td>${String(b.createdAt ?? "").slice(0, 10)}</td><td>${b.kodeBooking ?? "-"}</td><td>${b.guestName ?? "-"}</td><td>${b.roomTypeName ?? "-"}</td><td>${String(b.checkIn ?? "").slice(0, 10)}</td><td>${String(b.checkOut ?? "").slice(0, 10)}</td><td>${b.bookingStatus ?? "-"}</td><td class="right">${formatRupiah(b.total ?? 0)}</td></tr>`
+      `<tr><td>${String(b.createdAt ?? "").slice(0, 10)}</td><td>${b.kodeBooking ?? "-"}</td><td>${b.guestName ?? "-"}</td><td>${b.roomTypeName ?? "-"}</td><td>${String(b.checkIn ?? "").slice(0, 10)}</td><td>${String(b.checkOut ?? "").slice(0, 10)}</td><td>${formatBookingStatus(b.bookingStatus ?? "-")}</td><td class="right">${formatRupiah(b.total ?? 0)}</td></tr>`
   )
   .join("") || `<tr><td colspan="8">Tidak ada data booking.</td></tr>`}
 </tbody></table>
@@ -76,7 +81,8 @@ ${rows
     { l: "Total Booking", v: String(report.data?.totalBooking ?? 0) },
     { l: "Sukses", v: String(report.data?.sukses ?? 0) },
     { l: "Dibatalkan", v: String(report.data?.dibatalkan ?? 0) },
-    { l: "Avg. Length", v: `${(report.data?.avgLengthNights ?? 0).toFixed(1)} mlm` },
+    // Avg. Length di-hide
+    // { l: "Avg. Length", v: `${(report.data?.avgLengthNights ?? 0).toFixed(1)} mlm` },
   ];
 
   return (
@@ -91,7 +97,7 @@ ${rows
         </button>
       </PageHeader>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         {stats.map((s) => (
           <div key={s.l} className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)]">
             <div className="text-xs text-muted-foreground">{s.l}</div>
@@ -100,33 +106,24 @@ ${rows
         ))}
       </div>
 
-      <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
-        <h3 className="text-base font-bold">Tren Booking 30 Hari</h3>
-        {report.isLoading && (
-          <div className="mt-4 text-sm text-muted-foreground">Memuat laporan...</div>
-        )}
-        {report.isError && (
-          <div className="mt-4 text-sm text-destructive">
-            {report.error instanceof Error ? report.error.message : "Gagal memuat laporan"}
-          </div>
-        )}
-        <div className="mt-5 flex h-48 items-end gap-1.5">
-          {(
-            report.data?.trend30 ??
-            Array.from({ length: 30 }).map((_, i) => ({ day: String(i), total: 0 }))
-          ).map((d, i, arr) => {
-            const max = Math.max(1, ...arr.map((x) => x.total));
-            const h = (d.total / max) * 100;
-            return (
-              <div
-                key={d.day}
-                className="flex-1 rounded-t-md bg-gradient-to-t from-primary/30 to-primary"
-                style={{ height: `${h}%` }}
-              />
-            );
-          })}
+      {/* Filter tanggal */}
+      <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] mb-2">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Input
+            label="Dari tanggal"
+            type="date"
+            value={from}
+            onChange={setFrom}
+          />
+          <Input
+            label="Sampai tanggal"
+            type="date"
+            value={to}
+            onChange={setTo}
+          />
         </div>
       </div>
+      {/* Tren Booking 30 Hari di-hide */}
 
       <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] overflow-x-auto">
         <h3 className="text-base font-bold mb-4">Detail Booking</h3>
@@ -159,7 +156,7 @@ ${rows
                   <td className="py-3.5">{b.roomTypeName ?? "-"}</td>
                   <td className="py-3.5 text-muted-foreground">{String(b.checkIn ?? "").slice(0, 10)}</td>
                   <td className="py-3.5 text-muted-foreground">{String(b.checkOut ?? "").slice(0, 10)}</td>
-                  <td className="py-3.5">{b.bookingStatus ?? "-"}</td>
+                  <td className="py-3.5">{formatBookingStatus(b.bookingStatus ?? "-")}</td>
                   <td className="py-3.5 text-right font-semibold">{formatRupiah(b.total ?? 0)}</td>
                 </tr>
               ))}

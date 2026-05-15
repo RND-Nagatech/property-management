@@ -65,8 +65,8 @@ function BookingCard({
   const [countdown, countdownSec] = useCountdown(bs === "pending_payment" ? countdownTarget : null);
 
   return (
-    <div className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
-      <div className="flex gap-4">
+    <div className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)] max-w-full">
+      <div className="flex gap-4 max-w-full">
         {roomType?.gambarThumbnail ? (
           <img
             src={resolveMediaUrl(roomType.gambarThumbnail) || roomType.gambarThumbnail}
@@ -76,8 +76,8 @@ function BookingCard({
         ) : (
           <div className="h-20 w-24 shrink-0 rounded-xl bg-secondary sm:h-24 sm:w-28" />
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex-1 min-w-0 max-w-full">
+          <div className="flex flex-wrap items-start justify-between gap-2 min-w-0 max-w-full">
             <div className="min-w-0">
               <div className="text-xs text-muted-foreground">{b.kodeBooking}</div>
               <div className="mt-0.5 truncate text-base font-bold">{roomType?.namaTipe ?? "-"}</div>
@@ -98,16 +98,17 @@ function BookingCard({
               )}
             </span>
           </div>
-          <div className="mt-3 flex items-end justify-between">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div className="text-base font-bold">{formatRupiah(b.total ?? 0)}</div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5 min-w-0 max-w-full">
               {bs === "pending_payment" && (
                 <Link
                   to="/pembayaran/$id"
                   params={{ id: b._id }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
+                  className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground max-w-full"
+                  style={{ minWidth: 0 }}
                 >
-                  Lanjut Bayar <ChevronRight className="h-3 w-3" />
+                  <span className="truncate">Lanjut Bayar</span> <ChevronRight className="h-3 w-3" />
                 </Link>
               )}
               {canCancel && (
@@ -127,7 +128,7 @@ function BookingCard({
                       cancel: { label: "Tutup" } as any,
                     });
                   }}
-                  className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold"
+                  className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold max-w-full"
                   title="Batalkan booking"
                 >
                   <X className="h-3 w-3" /> Batal
@@ -137,7 +138,7 @@ function BookingCard({
                 <Link
                   to="/testimoni/$id"
                   params={{ id: b._id }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground max-w-full"
                 >
                   Beri Testimoni <ChevronRight className="h-3 w-3" />
                 </Link>
@@ -146,7 +147,7 @@ function BookingCard({
                 <Link
                   to="/booking-berhasil/$id"
                   params={{ id: b._id }}
-                  className="rounded-lg border border-border p-2"
+                  className="rounded-lg border border-border p-2 max-w-full"
                   title="Lihat QR Booking"
                 >
                   <QrCode className="h-4 w-4" />
@@ -180,7 +181,7 @@ function BookingCard({
                       : "Selesaikan pembayaran terlebih dahulu."
                   );
                 }}
-                className={`rounded-lg border border-border p-2 inline-flex ${canAccessProof ? "" : "opacity-60"}`}
+                className={`rounded-lg border border-border p-2 inline-flex max-w-full ${canAccessProof ? "" : "opacity-60"}`}
                 title={canAccessProof ? "Download Invoice" : "Belum bisa diakses"}
               >
                 <FileText className="h-4 w-4" />
@@ -189,9 +190,9 @@ function BookingCard({
                 <Link
                   to="/kamar/$id"
                   params={{ id: roomType.slug }}
-                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground max-w-full"
                 >
-                  Detail <ChevronRight className="h-3 w-3" />
+                  <span className="truncate">Detail</span> <ChevronRight className="h-3 w-3" />
                 </Link>
               )}
             </div>

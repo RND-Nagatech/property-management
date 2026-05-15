@@ -55,6 +55,13 @@ export function TopBar() {
   const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
   const logo = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? "").trim());
   const initial = propertyName.trim().slice(0, 1).toUpperCase() || "P";
+  const path = window.location.pathname;
+  const navItems = [
+    { to: "/", label: "Beranda", icon: Home },
+    { to: "/booking-saya", label: "Booking Saya", icon: Calendar },
+    { to: "/kamar", label: "Kamar", icon: BedDouble },
+    { to: "/akun", label: "Akun", icon: User },
+  ];
   return (
     <header className="sticky top-0 z-30 glass border-b border-border">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -69,18 +76,20 @@ export function TopBar() {
           <span className="text-base font-bold tracking-tight">{propertyName}</span>
         </Link>
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
-          <Link to="/" className="hover:text-accent">
-            Beranda
-          </Link>
-          <Link to="/booking-saya" className="hover:text-accent">
-            Booking Saya
-          </Link>
-          <Link to="/kamar" className="hover:text-accent">
-            Kamar
-          </Link>
-          <Link to="/akun" className="hover:text-accent">
-            Akun
-          </Link>
+          {navItems.map((it) => {
+            const active = path === it.to || (it.to !== "/" && path.startsWith(it.to));
+            const Icon = it.icon;
+            return (
+              <Link
+                key={it.to}
+                to={it.to}
+                className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-colors ${active ? "text-accent bg-accent/10" : "hover:text-accent"}`}
+              >
+                <Icon className={`h-5 w-5 ${active ? "text-accent" : "text-muted-foreground"}`} />
+                <span>{it.label}</span>
+              </Link>
+            );
+          })}
         </nav>
         <div className="flex items-center gap-2">
           {isLoggedIn ? (

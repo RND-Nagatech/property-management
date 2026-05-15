@@ -9,7 +9,7 @@ import { useCreateExpense, useDeleteExpense, useExpenses } from "@/hooks/useExpe
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
 
 export const Route = createFileRoute("/admin/biaya")({
-  head: () => ({ meta: [{ title: "Biaya Operasional" }] }),
+  head: () => ({ meta: [{ title: "Kas Operasional" }] }),
   component: Biaya,
 });
 
@@ -18,8 +18,9 @@ function tipeLabel(t?: string) {
 }
 
 function Biaya() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
   const [tipeFilter, setTipeFilter] = useState<"" | "IN" | "OUT">("");
   const expenses = useExpenses({
     from: from || undefined,
@@ -189,7 +190,7 @@ function Biaya() {
       </div>
 
       {open && (
-        <Modal title="Tambah Transaksi Kas" onClose={() => setOpen(false)}>
+        <Modal title="Tambah Transaksi Kas Operasional" onClose={() => setOpen(false)}>
           <form onSubmit={onSave} className="space-y-4">
             <Input
               label="Tanggal"

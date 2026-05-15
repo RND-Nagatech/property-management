@@ -54,7 +54,7 @@ const groups: { title?: string; items: Item[] }[] = [
     items: [
       { to: "/admin/kalender", label: "Kalender", icon: CalendarRange },
       { to: "/admin/kerusakan", label: "Kerusakan", icon: Wrench },
-      { to: "/admin/biaya", label: "Biaya Operasional", icon: Receipt },
+      { to: "/admin/biaya", label: "Kas Operasional", icon: Receipt },
     ],
   },
   {

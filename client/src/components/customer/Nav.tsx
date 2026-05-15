@@ -59,13 +59,13 @@ export function TopBar() {
     <header className="sticky top-0 z-30 glass border-b border-border">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-            {logo ? (
-              <img src={logo} alt="" className="h-5 w-5 rounded-sm object-contain" />
-            ) : (
-              initial
-            )}
-          </div>
+          {logo ? (
+            <img src={logo} alt="" className="h-8 w-8 rounded-lg object-contain" />
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
+              {initial}
+            </div>
+          )}
           <span className="text-base font-bold tracking-tight">{propertyName}</span>
         </Link>
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium">

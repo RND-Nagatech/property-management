@@ -530,9 +530,13 @@ function Index() {
         <div className="mx-auto max-w-6xl px-4 py-10 text-sm text-muted-foreground">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-                S
-              </div>
+              {logo ? (
+                <img src={logo} alt="" className="h-8 w-8 rounded-lg object-contain" />
+              ) : (
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
+                  {propertyName ? propertyName[0] : "P"}
+                </div>
+              )}
               <span className="font-bold text-foreground">{propertyName || "Properti"}</span>
             </div>
             <p>© {new Date().getFullYear()} Nagatech Sistem Integrator. Semua hak dilindungi.</p>

@@ -51,8 +51,6 @@ function BookingPage() {
   const nights = diffNights(checkin, checkout);
   const pricePerNight = roomType.data?.hargaDefault ?? 0;
   const subtotal = pricePerNight * Math.max(1, nights);
-  const deposit = roomType.data?.depositDefault ?? 0;
-  const total = subtotal + deposit;
   const guestLabel = children > 0 ? `${adults} dewasa, ${children} anak` : `${adults} dewasa`;
 
   const createBooking = useMutation({
@@ -66,7 +64,6 @@ function BookingPage() {
           checkOut: checkout,
           dewasa: adults,
           anak: children,
-          total,
         }),
       });
     },
@@ -208,11 +205,10 @@ function BookingPage() {
 	                    label={`${formatRupiah(pricePerNight)} × ${Math.max(1, nights)} malam`}
 	                    value={formatRupiah(subtotal)}
 	                  />
-	                  <Row label="Deposit (refundable)" value={formatRupiah(deposit)} />
 	                </div>
                 <div className="mt-4 flex items-center justify-between border-t border-border pt-4">
                   <span className="text-sm font-bold">Total Bayar</span>
-                  <span className="text-lg font-bold">{formatRupiah(total)}</span>
+                  <span className="text-lg font-bold">{formatRupiah(subtotal)}</span>
                 </div>
 	                <button
 	                  type="button"
@@ -240,7 +236,7 @@ function BookingPage() {
 	        <div className="flex items-center justify-between gap-3">
 	          <div>
 	            <div className="text-[11px] text-muted-foreground">Total</div>
-	            <div className="text-base font-bold">{formatRupiah(total)}</div>
+	            <div className="text-base font-bold">{formatRupiah(subtotal)}</div>
 	          </div>
 	          <button
 	            type="button"

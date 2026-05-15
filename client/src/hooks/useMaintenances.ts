@@ -6,7 +6,7 @@ export type MaintenanceStatus = "Baru" | "Diproses" | "Selesai";
 
 export type Maintenance = {
   _id: string;
-  roomId?: Room | null;
+  roomId?: Room | string | null;
   roomTypeId?: RoomType | null;
   judul: string;
   deskripsi?: string;
@@ -38,6 +38,15 @@ export function useUpdateMaintenance() {
         method: "PUT",
         body: JSON.stringify(payload),
       }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["maintenances"] }),
+  });
+}
+
+export function useDeleteMaintenance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiRequest<Maintenance>(`/maintenances/${encodeURIComponent(id)}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["maintenances"] }),
   });
 }

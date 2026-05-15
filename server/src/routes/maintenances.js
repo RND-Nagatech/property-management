@@ -26,6 +26,9 @@ maintenancesRouter.post("/", async (req, res, next) => {
   try {
     const body = req.body ?? {};
     if (!body.judul) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "judul wajib" } });
+    if (!body.roomId || !isObjectId(String(body.roomId))) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "roomId wajib" } });
+    }
     const created = await Maintenance.create(body);
     res.status(201).json({ data: created.toObject() });
   } catch (err) {
@@ -56,4 +59,3 @@ maintenancesRouter.delete("/:id", async (req, res, next) => {
     next(err);
   }
 });
-

@@ -28,6 +28,18 @@ const RoomTypeSchema = new mongoose.Schema(
         default: null,
       },
     },
+    // Policy/info only (not charged during booking). Actual deposit is recorded at check-in.
+    depositPolicy: {
+      enabled: { type: Boolean, required: true, default: false },
+      allowedTypes: {
+        type: [String],
+        required: true,
+        default: [],
+        enum: ["CASH", "KTP", "SIM", "PASSPORT"],
+      },
+      cashAmount: { type: Number, required: false, default: 0 },
+      note: { type: String, required: false, default: "" },
+    },
     kebijakanRefund: { type: String, required: false, default: "" },
     kebijakanReschedule: { type: String, required: false, default: "" },
     jamCheckIn: { type: String, required: true, default: "14:00" },

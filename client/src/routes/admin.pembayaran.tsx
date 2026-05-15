@@ -7,6 +7,7 @@ import { usePayments } from "@/hooks/usePayments";
 import { useUpdatePayment } from "@/hooks/usePayments";
 import { Modal } from "./admin.tipe-kamar";
 import { useMemo, useState } from "react";
+import { labelEnum } from "@/lib/labels";
 
 export const Route = createFileRoute("/admin/pembayaran")({
   head: () => ({ meta: [{ title: "Pembayaran" }] }),
@@ -30,6 +31,9 @@ function Pembayaran() {
   const [preview, setPreview] = useState<null | { invoice: string; proof?: string }>(null);
 
   const rows = useMemo(() => payments.data ?? [], [payments.data]);
+  const [pendingConfirm, setPendingConfirm] = useState<null | { id: string; cancelled: boolean }>(
+    null
+  );
 
   function guestLabel(p: any) {
     const booking = p?.bookingId && typeof p.bookingId === "object" ? p.bookingId : null;
@@ -105,7 +109,7 @@ function Pembayaran() {
               <tr key={d._id} className="hover:bg-secondary/40">
                 <td className="py-3.5 font-mono text-xs font-bold">{d.invoice}</td>
                 <td className="py-3.5 font-medium">{guestLabel(d)}</td>
-                <td className="py-3.5 text-muted-foreground">{d.metode}</td>
+                <td className="py-3.5 text-muted-foreground">{labelEnum(d.metode)}</td>
                 <td className="py-3.5 font-semibold">{formatRupiah(d.jumlah)}</td>
                 <td className="py-3.5">
                   {(() => {
@@ -132,14 +136,34 @@ function Pembayaran() {
                     {labelStatus(String(d.status)) === "Menunggu" && (
                       <>
                         <button
-                          onClick={() => setStatus(d._id, "Terverifikasi")}
+                          onClick={() => {
+                            const booking = d?.bookingId && typeof d.bookingId === "object" ? d.bookingId : null;
+                            const cancelled =
+                              String(booking?.bookingStatus ?? "") === "cancelled" ||
+                              String(booking?.status ?? "") === "Dibatalkan";
+                            if (!cancelled) {
+                              setStatus(d._id, "Terverifikasi");
+                              return;
+                            }
+                            setPendingConfirm({ id: d._id, cancelled: true });
+                          }}
                           className="rounded-lg bg-accent p-1.5 text-accent-foreground"
+                          title={
+                            (() => {
+                              const booking = d?.bookingId && typeof d.bookingId === "object" ? d.bookingId : null;
+                              const cancelled =
+                                String(booking?.bookingStatus ?? "") === "cancelled" ||
+                                String(booking?.status ?? "") === "Dibatalkan";
+                              return cancelled ? "Verifikasi Pembayaran Masuk" : "Verifikasi & Konfirmasi Booking";
+                            })()
+                          }
                         >
                           <Check className="h-3.5 w-3.5" />
                         </button>
                         <button
                           onClick={() => setStatus(d._id, "Ditolak")}
                           className="rounded-lg bg-destructive/10 p-1.5 text-destructive"
+                          title="Tolak pembayaran"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
@@ -197,6 +221,36 @@ function Pembayaran() {
               </a>
             </div>
           )}
+        </Modal>
+      )}
+
+      {pendingConfirm?.cancelled && (
+        <Modal title="Verifikasi Pembayaran Masuk" onClose={() => setPendingConfirm(null)}>
+          <div className="space-y-4 text-sm">
+            <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-warning">
+              Booking ini sudah dibatalkan customer. Verifikasi hanya akan mencatat pembayaran masuk dan tidak akan mengaktifkan booking kembali.
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingConfirm(null)}
+                className="rounded-xl border border-border px-4 py-2.5 text-sm font-medium"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const id = pendingConfirm.id;
+                  setPendingConfirm(null);
+                  await setStatus(id, "Terverifikasi");
+                }}
+                className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-accent-foreground"
+              >
+                Verifikasi Pembayaran
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

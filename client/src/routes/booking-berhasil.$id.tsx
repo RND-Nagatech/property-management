@@ -73,7 +73,7 @@ function Success() {
           </div>
           <h1 className="mt-5 text-2xl font-bold">Booking Berhasil!</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Konfirmasi telah dikirim ke email Anda. Tunjukkan QR code di bawah saat check-in.
+            Konfirmasi telah dikirim ke WhatsApp Anda. Tunjukkan QR code di bawah saat check-in.
           </p>
 
           <div className="mt-6 rounded-2xl border border-dashed border-border bg-secondary/40 p-6">

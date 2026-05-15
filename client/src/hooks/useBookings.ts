@@ -28,6 +28,8 @@ const keys = {
   bookings: (params: { status?: string; tamuId?: string; roomTypeId?: string }) =>
     ["bookings", params] as const,
   bookingByCode: (code: string) => ["bookings", "byCode", code] as const,
+  checkoutSearch: (params: { bookingCode?: string; roomNumber?: string; guestName?: string; guestPhone?: string }) =>
+    ["bookings", "checkoutSearch", params] as const,
 };
 
 export function useBookings(params?: {
@@ -60,6 +62,26 @@ export function useBookingByCode(code: string) {
     queryKey: keys.bookingByCode(code),
     enabled: Boolean(code),
     queryFn: () => apiRequest<Booking>(`/admin/bookings/by-code/${encodeURIComponent(code)}`),
+  });
+}
+
+export function useCheckoutSearch(params: {
+  bookingCode?: string;
+  roomNumber?: string;
+  guestName?: string;
+  guestPhone?: string;
+}) {
+  const search = new URLSearchParams();
+  if (params.bookingCode) search.set("bookingCode", params.bookingCode);
+  if (params.roomNumber) search.set("roomNumber", params.roomNumber);
+  if (params.guestName) search.set("guestName", params.guestName);
+  if (params.guestPhone) search.set("guestPhone", params.guestPhone);
+  const qs = search.toString();
+
+  return useQuery({
+    queryKey: keys.checkoutSearch(params),
+    enabled: Boolean(qs),
+    queryFn: () => apiRequest<Booking[]>(`/admin/bookings/checkout-search?${qs}`),
   });
 }
 
@@ -110,8 +132,11 @@ export function useCheckInBooking() {
 export function useCheckOutBooking() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) =>
-      apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/check-out`, { method: "POST" }),
+    mutationFn: ({ id, payload }: { id: string; payload?: any }) =>
+      apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/check-out`, {
+        method: "POST",
+        body: JSON.stringify(payload ?? {}),
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
       qc.invalidateQueries({ queryKey: ["rooms"] });

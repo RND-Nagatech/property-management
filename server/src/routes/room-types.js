@@ -37,12 +37,14 @@ roomTypesRouter.get("/", async (req, res, next) => {
       {
         $addFields: {
           totalKamar: { $size: "$rooms" },
+          // NOTE: Room.status is physical/unit status. Availability by date is computed from booking overlap.
+          // Here, we treat rooms not under maintenance as "tersedia" for display purposes.
           kamarTersedia: {
             $size: {
               $filter: {
                 input: "$rooms",
                 as: "r",
-                cond: { $eq: ["$$r.status", "tersedia"] },
+                cond: { $ne: ["$$r.status", "perbaikan"] },
               },
             },
           },
@@ -69,7 +71,7 @@ roomTypesRouter.get("/:slug", async (req, res, next) => {
         $group: {
           _id: "$roomTypeId",
           totalKamar: { $sum: 1 },
-          kamarTersedia: { $sum: { $cond: [{ $eq: ["$status", "tersedia"] }, 1, 0] } },
+          kamarTersedia: { $sum: { $cond: [{ $ne: ["$status", "perbaikan"] }, 1, 0] } },
         },
       },
     ]);

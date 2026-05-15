@@ -10,6 +10,7 @@ import {
   useUpdateRoomType,
 } from "@/hooks/useRoomTypes";
 import type { RoomType } from "@/services/types";
+import { CurrencyInput } from "@/components/ui/CurrencyInput";
 
 export const Route = createFileRoute("/admin/tipe-kamar")({
   head: () => ({ meta: [{ title: "Master Tipe Kamar" }] }),
@@ -28,9 +29,10 @@ type FormState = {
   fasilitasUtama: string;
   fasilitasKamar: string;
   fasilitasKamarMandi: string;
-  depositType: "MONEY" | "DOCUMENT";
-  depositAmount: string;
-  depositDocumentType: "" | "KTP" | "PASSPORT" | "SIM";
+  depositEnabled: boolean;
+  depositAllowedTypes: ("CASH" | "KTP" | "SIM" | "PASSPORT")[];
+  depositCashAmount: string;
+  depositNote: string;
   jamCheckIn: string;
   jamCheckOut: string;
   gambarThumbnail: string;
@@ -49,9 +51,10 @@ const emptyForm: FormState = {
   fasilitasUtama: "AC, WiFi Gratis, TV LED",
   fasilitasKamar: "",
   fasilitasKamarMandi: "",
-  depositType: "MONEY",
-  depositAmount: "300000",
-  depositDocumentType: "",
+  depositEnabled: false,
+  depositAllowedTypes: [],
+  depositCashAmount: "",
+  depositNote: "",
   jamCheckIn: "14:00",
   jamCheckOut: "12:00",
   gambarThumbnail: "",
@@ -97,11 +100,24 @@ function TipeKamarPage() {
 
   function openEdit(r: RoomType) {
     setEditing(r);
-    const legacyDepositAmount = String(r.depositDefault ?? 0);
-    const depositType = r.deposit?.type ?? (Number(r.depositDefault ?? 0) > 0 ? "MONEY" : "MONEY");
-    const depositAmount = String(r.deposit?.amount ?? r.depositDefault ?? 0);
-    const depositDocumentType =
-      depositType === "DOCUMENT" ? String(r.deposit?.documentType ?? "") : "";
+    const policyEnabled =
+      Boolean(r.depositPolicy?.enabled) ||
+      Number(r.depositDefault ?? 0) > 0 ||
+      r.deposit?.type === "DOCUMENT";
+    const policyAllowedTypes: ("CASH" | "KTP" | "SIM" | "PASSPORT")[] = Array.isArray(
+      r.depositPolicy?.allowedTypes
+    )
+      ? (r.depositPolicy!.allowedTypes as any)
+      : [];
+    const legacyAllowedFromDeposit: ("CASH" | "KTP" | "SIM" | "PASSPORT")[] = [];
+    if (Number(r.depositDefault ?? 0) > 0) legacyAllowedFromDeposit.push("CASH");
+    if (r.deposit?.type === "DOCUMENT" && r.deposit.documentType) {
+      legacyAllowedFromDeposit.push(r.deposit.documentType as any);
+    }
+    const allowedTypes = policyAllowedTypes.length > 0 ? policyAllowedTypes : legacyAllowedFromDeposit;
+    const cashAmount =
+      String(r.depositPolicy?.cashAmount ?? "") ||
+      (Number(r.depositDefault ?? 0) > 0 ? String(r.depositDefault) : "");
     setForm({
       namaTipe: r.namaTipe,
       slug: r.slug,
@@ -114,9 +130,10 @@ function TipeKamarPage() {
       fasilitasUtama: (r.fasilitasUtama ?? []).join(", "),
       fasilitasKamar: (r.fasilitasKamar ?? []).join(", "),
       fasilitasKamarMandi: (r.fasilitasKamarMandi ?? []).join(", "),
-      depositType,
-      depositAmount: depositType === "MONEY" ? depositAmount : legacyDepositAmount,
-      depositDocumentType: depositDocumentType as any,
+      depositEnabled: policyEnabled,
+      depositAllowedTypes: allowedTypes,
+      depositCashAmount: cashAmount,
+      depositNote: String(r.depositPolicy?.note ?? ""),
       jamCheckIn: r.jamCheckIn ?? "14:00",
       jamCheckOut: r.jamCheckOut ?? "12:00",
       gambarThumbnail: r.gambarThumbnail ?? "",
@@ -141,6 +158,16 @@ function TipeKamarPage() {
       toast.error("Nama tipe dan harga wajib diisi");
       return;
     }
+    if (form.depositEnabled) {
+      if ((form.depositAllowedTypes?.length ?? 0) === 0) {
+        toast.error("Pilih minimal 1 jenis deposit");
+        return;
+      }
+      if (form.depositAllowedTypes.includes("CASH") && (Number(form.depositCashAmount || "0") || 0) <= 0) {
+        toast.error("Nominal deposit wajib diisi untuk deposit uang tunai");
+        return;
+      }
+    }
 
     const baseSlug = normalizeSlugLocal(form.slug || form.namaTipe);
     let nextSlug = baseSlug;
@@ -154,14 +181,28 @@ function TipeKamarPage() {
       nextSlug = `${baseSlug}-${n++}`;
     }
 
-    const deposit =
-      form.depositType === "MONEY"
-        ? { type: "MONEY" as const, amount: Number(form.depositAmount || "0") || 0, documentType: null }
-        : {
-            type: "DOCUMENT" as const,
-            amount: 0,
-            documentType: (form.depositDocumentType || "KTP") as any,
-          };
+    const depositPolicyEnabled = Boolean(form.depositEnabled);
+    const depositPolicyAllowedTypes = Array.from(new Set(form.depositAllowedTypes ?? [])).filter(
+      Boolean
+    ) as ("CASH" | "KTP" | "SIM" | "PASSPORT")[];
+    const depositPolicyCashAmount = Number(form.depositCashAmount || "0") || 0;
+    const depositPolicy: RoomType["depositPolicy"] = {
+      enabled: depositPolicyEnabled,
+      allowedTypes: depositPolicyAllowedTypes,
+      cashAmount: depositPolicyCashAmount,
+      note: form.depositNote || "",
+    };
+
+    // Backward-compatible fields:
+    // - Keep depositDefault numeric for legacy display/reporting
+    // - Keep deposit object for older UI
+    const enableCash = depositPolicyEnabled && depositPolicyAllowedTypes.includes("CASH");
+    const legacyDepositDefault = enableCash ? depositPolicyCashAmount : 0;
+    const firstDoc = depositPolicyAllowedTypes.find((t) => t !== "CASH") as any;
+    const legacyDeposit: RoomType["deposit"] =
+      depositPolicyEnabled && !enableCash && firstDoc
+        ? { type: "DOCUMENT", amount: 0, documentType: firstDoc }
+        : { type: "MONEY", amount: legacyDepositDefault, documentType: null };
 
     const payload: Partial<RoomType> = {
       namaTipe: form.namaTipe,
@@ -184,9 +225,10 @@ function TipeKamarPage() {
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
-      // Backward-compatible: keep depositDefault for reports/old UI
-      depositDefault: deposit.type === "MONEY" ? deposit.amount : 0,
-      deposit,
+      depositPolicy: depositPolicy as any,
+      // Backward-compatible: keep depositDefault/deposit for older pages (deposit is not charged on booking).
+      depositDefault: legacyDepositDefault,
+      deposit: legacyDeposit as any,
       jamCheckIn: form.jamCheckIn,
       jamCheckOut: form.jamCheckOut,
       gambarThumbnail: form.gambarThumbnail,
@@ -331,57 +373,77 @@ function TipeKamarPage() {
               placeholder="deluxe-room"
             />
             <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Harga / malam (Rp)"
-                type="number"
-                value={form.hargaDefault}
-                onChange={(v) => setForm({ ...form, hargaDefault: v })}
-                placeholder="850000"
+              <CurrencyInput
+                label="Harga / malam"
+                valueDigits={String(form.hargaDefault ?? "").replace(/[^\d]/g, "")}
+                onChangeDigits={(digits) => setForm({ ...form, hargaDefault: digits })}
+                placeholder="Rp 850.000"
               />
               <div className="space-y-2">
-                <label className="block">
-                  <span className="mb-1 block text-xs font-semibold text-muted-foreground">Deposit</span>
-                  <select
-                    value={form.depositType}
+                <div className="text-xs font-semibold text-muted-foreground">Deposit (kebijakan)</div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={form.depositEnabled}
                     onChange={(e) =>
                       setForm((p) => ({
                         ...p,
-                        depositType: e.target.value as any,
+                        depositEnabled: e.target.checked,
+                        depositAllowedTypes: e.target.checked ? (p.depositAllowedTypes.length ? p.depositAllowedTypes : ["CASH"]) : [],
                       }))
                     }
-                    className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
-                  >
-                    <option value="MONEY">Uang</option>
-                    <option value="DOCUMENT">Dokumen</option>
-                  </select>
-                </label>
-                {form.depositType === "MONEY" ? (
-                  <Input
-                    label="Nominal Deposit (Rp)"
-                    type="number"
-                    value={form.depositAmount}
-                    onChange={(v) => setForm({ ...form, depositAmount: v })}
+                    className="h-4 w-4 accent-[oklch(0.74_0.10_78)]"
                   />
-                ) : (
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-muted-foreground">
-                      Jenis Dokumen
-                    </span>
-                    <select
-                      value={form.depositDocumentType}
-                      onChange={(e) => setForm({ ...form, depositDocumentType: e.target.value as any })}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
-                    >
-                      <option value="KTP">KTP</option>
-                      <option value="PASSPORT">Paspor</option>
-                      <option value="SIM">SIM</option>
-                    </select>
-                  </label>
+                  Aktifkan deposit
+                </label>
+                {form.depositEnabled && (
+                  <div className="space-y-2 rounded-xl border border-border bg-background p-3">
+                    <div className="text-xs font-semibold text-muted-foreground">Jenis deposit yang diterima</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {(["CASH", "KTP", "SIM", "PASSPORT"] as const).map((t) => (
+                        <label key={t} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={form.depositAllowedTypes.includes(t)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setForm((p) => {
+                                const next = checked
+                                  ? Array.from(new Set([...p.depositAllowedTypes, t]))
+                                  : p.depositAllowedTypes.filter((x) => x !== t);
+                                return { ...p, depositAllowedTypes: next as any };
+                              });
+                            }}
+                            className="h-4 w-4 accent-[oklch(0.74_0.10_78)]"
+                          />
+                          {t === "CASH" ? "Uang tunai" : t === "PASSPORT" ? "Paspor" : t}
+                        </label>
+                      ))}
+                    </div>
+                    {form.depositAllowedTypes.includes("CASH") && (
+                      <CurrencyInput
+                        label="Nominal deposit (Rp)"
+                        valueDigits={String(form.depositCashAmount ?? "").replace(/[^\d]/g, "")}
+                        onChangeDigits={(digits) => setForm((p) => ({ ...p, depositCashAmount: digits }))}
+                        placeholder="Rp 300.000"
+                      />
+                    )}
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-muted-foreground">Catatan</span>
+                      <textarea
+                        rows={2}
+                        value={form.depositNote}
+                        onChange={(e) => setForm((p) => ({ ...p, depositNote: e.target.value }))}
+                        placeholder="Contoh: deposit dikembalikan saat check-out."
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                      />
+                    </label>
+                  </div>
                 )}
               </div>
             </div>
             <div className="text-xs text-muted-foreground">
-              Preview harga: {formatRupiah(Number(form.hargaDefault || "0") || 0)}
+              {/* Preview harga: {formatRupiah(Number(form.hargaDefault || "0") || 0)} */}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <Input

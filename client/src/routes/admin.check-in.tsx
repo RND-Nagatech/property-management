@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { useBookingByCode, useCheckInBooking, useUpdateBooking } from "@/hooks/useBookings";
 import { useRooms } from "@/hooks/useRooms";
 import { formatRupiah } from "@/lib/currency";
+import { useCreateDeposit, useDepositByBooking, useUpdateDeposit } from "@/hooks/useDeposits";
+import { CurrencyInput } from "@/components/ui/CurrencyInput";
 
 export const Route = createFileRoute("/admin/check-in")({
   head: () => ({ meta: [{ title: "Check-in" }] }),
@@ -25,10 +27,40 @@ function CheckInPage() {
   const booking = useBookingByCode(submitted);
   const updateBooking = useUpdateBooking();
   const checkIn = useCheckInBooking();
+  const deposit = useDepositByBooking(booking.data?._id);
+  const createDeposit = useCreateDeposit();
+  const updateDeposit = useUpdateDeposit();
 
   const roomTypeId = (booking.data?.roomTypeId as any)?._id;
   const availableRooms = useRooms(roomTypeId ? { roomTypeId, status: "tersedia" } : undefined);
   const [selectedRoomId, setSelectedRoomId] = useState("");
+
+  const [depositType, setDepositType] = useState<"NONE" | "CASH" | "KTP" | "SIM" | "PASSPORT">(
+    "NONE"
+  );
+  const [depositAmount, setDepositAmount] = useState("");
+  const [identityName, setIdentityName] = useState("");
+  const [identityNumber, setIdentityNumber] = useState("");
+  const [depositNote, setDepositNote] = useState("");
+
+  useEffect(() => {
+    if (!booking.data?._id) return;
+    const d = deposit.data;
+    if (d) {
+      setDepositType((d.type as any) ?? (Number(d.jumlah ?? 0) > 0 ? "CASH" : "NONE"));
+      setDepositAmount(String(d.amount ?? d.jumlah ?? ""));
+      setIdentityName(String(d.identityName ?? ""));
+      setIdentityNumber(String(d.identityNumber ?? ""));
+      setDepositNote(String(d.note ?? d.catatan ?? ""));
+    } else {
+      setDepositType("NONE");
+      setDepositAmount("");
+      setIdentityName("");
+      setIdentityNumber("");
+      setDepositNote("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking.data?._id, deposit.data?._id]);
 
   async function onCheck() {
     if (!code.trim()) {
@@ -42,6 +74,31 @@ function CheckInPage() {
     if (!booking.data) return;
 
     try {
+      // Record actual deposit at check-in (policy only lives in room type).
+      const amountNum = Number(depositAmount || "0") || 0;
+      if (depositType === "CASH" && amountNum <= 0) {
+        toast.error("Nominal deposit wajib diisi untuk deposit uang tunai");
+        return;
+      }
+      const depositPayload: any = {
+        bookingId: booking.data._id,
+        jumlah: depositType === "CASH" ? amountNum : 0,
+        status: "Ditahan",
+        catatan: depositNote || "",
+        type: depositType,
+        amount: depositType === "CASH" ? amountNum : 0,
+        identityName: identityName || "",
+        identityNumber: identityNumber || "",
+        note: depositNote || "",
+        receivedAt: new Date().toISOString(),
+        returnStatus: "PENDING",
+      };
+      if (deposit.data?._id) {
+        await updateDeposit.mutateAsync({ id: deposit.data._id, payload: depositPayload });
+      } else if (depositType !== "NONE") {
+        await createDeposit.mutateAsync(depositPayload);
+      }
+
       const hasRoom = Boolean((booking.data.roomId as any)?._id);
       if (!hasRoom) {
         if (!selectedRoomId) {
@@ -59,6 +116,11 @@ function CheckInPage() {
       setSubmitted("");
       setCode("");
       setSelectedRoomId("");
+      setDepositType("NONE");
+      setDepositAmount("");
+      setIdentityName("");
+      setIdentityNumber("");
+      setDepositNote("");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal check-in");
     }
@@ -275,21 +337,97 @@ function CheckInPage() {
                       {(booking.data as any)?.payment?.status ?? booking.data.paymentStatus ?? "-"}
                     </span>
                   </div>
-                  {(booking.data as any)?.payment?.invoice && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Invoice</span>
-                      <span className="font-mono font-bold">
-                        {(booking.data as any)?.payment?.invoice}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                {(booking.data as any)?.payment?.invoice && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Invoice</span>
+                    <span className="font-mono font-bold">
+                      {(booking.data as any)?.payment?.invoice}
+                    </span>
+                  </div>
+                )}
+              </div>
 
-                {!(booking.data.roomId as any)?._id && (
-                  <div className="mt-4">
-                    <div className="text-xs font-semibold text-muted-foreground">
-                      Pilih Kamar Fisik
-                    </div>
+              <div className="mt-4 rounded-xl border border-border p-3">
+                <div className="text-xs font-semibold text-muted-foreground">Deposit saat Check-in</div>
+                {deposit.isLoading ? (
+                  <div className="mt-2 text-xs text-muted-foreground">Memuat data deposit...</div>
+                ) : deposit.isError ? (
+                  <div className="mt-2 text-xs text-destructive">
+                    {deposit.error instanceof Error ? deposit.error.message : "Gagal memuat deposit"}
+                  </div>
+                ) : (
+                  <div className="mt-2 space-y-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                        Jenis Deposit
+                      </span>
+                      <select
+                        value={depositType}
+                        onChange={(e) => setDepositType(e.target.value as any)}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                      >
+                        <option value="NONE">Tidak ada</option>
+                        <option value="CASH">Uang tunai</option>
+                        <option value="KTP">KTP</option>
+                        <option value="SIM">SIM</option>
+                        <option value="PASSPORT">Paspor</option>
+                      </select>
+                    </label>
+                    {depositType === "CASH" && (
+                      <CurrencyInput
+                        label="Nominal"
+                        valueDigits={String(depositAmount ?? "").replace(/[^\d]/g, "")}
+                        onChangeDigits={(digits) => setDepositAmount(digits)}
+                        placeholder="Rp 300.000"
+                      />
+                    )}
+                    {depositType !== "NONE" && depositType !== "CASH" && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                            Nama di Identitas
+                          </span>
+                          <input
+                            value={identityName}
+                            onChange={(e) => setIdentityName(e.target.value)}
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                            placeholder="Nama sesuai identitas"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                            Nomor Identitas
+                          </span>
+                          <input
+                            value={identityNumber}
+                            onChange={(e) => setIdentityNumber(e.target.value)}
+                            className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                            placeholder="Nomor KTP/SIM/Paspor"
+                          />
+                        </label>
+                      </div>
+                    )}
+                    <label className="block">
+                      <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                        Catatan
+                      </span>
+                      <textarea
+                        rows={2}
+                        value={depositNote}
+                        onChange={(e) => setDepositNote(e.target.value)}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+                        placeholder="Catatan deposit (opsional)"
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {!(booking.data.roomId as any)?._id && (
+                <div className="mt-4">
+                  <div className="text-xs font-semibold text-muted-foreground">
+                    Pilih Kamar Fisik
+                  </div>
                     <select
                       value={selectedRoomId}
                       onChange={(e) => setSelectedRoomId(e.target.value)}

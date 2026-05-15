@@ -12,10 +12,12 @@ expensesRouter.get("/", async (req, res, next) => {
   try {
     const from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
     const to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
+    const tipe = typeof req.query.tipe === "string" ? req.query.tipe.trim().toUpperCase() : "";
 
     const match = {};
     if (from && !Number.isNaN(from.getTime())) match.tanggal = { ...(match.tanggal ?? {}), $gte: from };
     if (to && !Number.isNaN(to.getTime())) match.tanggal = { ...(match.tanggal ?? {}), $lte: to };
+    if (tipe === "IN" || tipe === "OUT") match.tipeTransaksi = tipe;
 
     const items = await Expense.find(match).sort({ tanggal: -1 }).select("-__v").lean();
     res.json({ data: items });
@@ -31,7 +33,11 @@ expensesRouter.post("/", async (req, res, next) => {
     for (const k of required) {
       if (!body[k]) return res.status(400).json({ error: { code: "BAD_REQUEST", message: `${k} wajib` } });
     }
-    const created = await Expense.create(body);
+    const tipe = String(body.tipeTransaksi ?? "OUT").toUpperCase();
+    if (!(tipe === "IN" || tipe === "OUT")) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "tipeTransaksi tidak valid" } });
+    }
+    const created = await Expense.create({ ...body, tipeTransaksi: tipe });
     res.status(201).json({ data: created.toObject() });
   } catch (err) {
     next(err);
@@ -61,4 +67,3 @@ expensesRouter.delete("/:id", async (req, res, next) => {
     next(err);
   }
 });
-

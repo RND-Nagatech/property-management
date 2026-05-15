@@ -7,6 +7,12 @@ export type FinanceReport = {
   pendapatanBulanan: number;
   biayaHariIni: number;
   biayaBulanan: number;
+  kasMasukHariIni?: number;
+  kasKeluarHariIni?: number;
+  saldoKasHariIni?: number;
+  kasMasukBulanan?: number;
+  kasKeluarBulanan?: number;
+  saldoKasBulanan?: number;
   labaBulanan: number;
   potonganDepositBulanan: number;
   byRoomType: Array<{
@@ -29,6 +35,7 @@ export type FinanceReport = {
   expenses?: Array<{
     _id: string;
     tanggal: string;
+    tipeTransaksi?: "IN" | "OUT";
     kategori: string;
     deskripsi: string;
     jumlah: number;

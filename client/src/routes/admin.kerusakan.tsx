@@ -1,15 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "./admin.tipe-kamar";
-import { Plus, Upload, Wrench } from "lucide-react";
+import { Plus, Wrench, Edit2, Trash2 } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Modal, Input } from "./admin.tipe-kamar";
 import {
   useCreateMaintenance,
+  useDeleteMaintenance,
   useMaintenances,
   useUpdateMaintenance,
   type MaintenanceStatus,
 } from "@/hooks/useMaintenances";
+import { useRooms } from "@/hooks/useRooms";
 
 export const Route = createFileRoute("/admin/kerusakan")({
   head: () => ({ meta: [{ title: "Kerusakan" }] }),
@@ -22,40 +24,85 @@ const sc: Record<string, string> = {
   Selesai: "bg-accent/10 text-accent",
 };
 
+function statusLabel(status: MaintenanceStatus) {
+  if (status === "Baru") return "Dilaporkan";
+  if (status === "Diproses") return "Sedang Diproses";
+  return "Selesai";
+}
+
 function Kerusakan() {
   const maintenances = useMaintenances();
   const createMaintenance = useCreateMaintenance();
   const updateMaintenance = useUpdateMaintenance();
+  const deleteMaintenance = useDeleteMaintenance();
+  const rooms = useRooms();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<{
+    roomId: string;
     judul: string;
     deskripsi: string;
     status: MaintenanceStatus;
     biayaEstimasi: string;
-  }>({ judul: "", deskripsi: "", status: "Baru", biayaEstimasi: "" });
+  }>({ roomId: "", judul: "", deskripsi: "", status: "Baru", biayaEstimasi: "" });
 
   function openAdd() {
-    setForm({ judul: "", deskripsi: "", status: "Baru", biayaEstimasi: "" });
+    setEditing(null);
+    setForm({ roomId: "", judul: "", deskripsi: "", status: "Baru", biayaEstimasi: "" });
+    setOpen(true);
+  }
+
+  function openEdit(k: any) {
+    setEditing(k);
+    const rid =
+      k.roomId && typeof k.roomId === "object" ? String(k.roomId._id ?? "") : String(k.roomId ?? "");
+    setForm({
+      roomId: rid,
+      judul: k.judul ?? "",
+      deskripsi: k.deskripsi ?? "",
+      status: (k.status ?? "Baru") as MaintenanceStatus,
+      biayaEstimasi: String(k.biayaEstimasi ?? ""),
+    });
     setOpen(true);
   }
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
+    if (!form.roomId) {
+      toast.error("Nomor kamar wajib dipilih");
+      return;
+    }
     if (!form.judul) {
       toast.error("Judul wajib diisi");
       return;
     }
     try {
-      await createMaintenance.mutateAsync({
+      const payload = {
+        roomId: form.roomId,
         judul: form.judul,
         deskripsi: form.deskripsi,
         status: form.status,
         biayaEstimasi: form.biayaEstimasi ? Number(form.biayaEstimasi) : 0,
-      });
-      toast.success("Laporan kerusakan ditambahkan");
+      };
+      if (editing?._id) {
+        await updateMaintenance.mutateAsync({ id: editing._id, payload });
+        toast.success("Laporan kerusakan diperbarui");
+      } else {
+        await createMaintenance.mutateAsync(payload);
+        toast.success("Laporan kerusakan ditambahkan");
+      }
       setOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan laporan");
+    }
+  }
+
+  async function markProcessing(id: string) {
+    try {
+      await updateMaintenance.mutateAsync({ id, payload: { status: "Diproses" } });
+      toast.success("Status diubah menjadi Sedang Diproses");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah status");
     }
   }
 
@@ -66,6 +113,24 @@ function Kerusakan() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal mengubah status");
     }
+  }
+
+  async function onDelete(id: string) {
+    toast("Hapus laporan kerusakan ini?", {
+      description: "Data yang dihapus tidak bisa dipulihkan.",
+      action: {
+        label: "Hapus",
+        onClick: async () => {
+          try {
+            await deleteMaintenance.mutateAsync(id);
+            toast.success("Laporan berhasil dihapus");
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Gagal menghapus laporan");
+          }
+        },
+      },
+      cancel: { label: "Batal" } as any,
+    });
   }
 
   return (
@@ -120,7 +185,7 @@ function Kerusakan() {
               <span
                 className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${sc[k.status]}`}
               >
-                {k.status}
+                {statusLabel(k.status)}
               </span>
             </div>
             <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
@@ -130,14 +195,36 @@ function Kerusakan() {
               </span>
             </div>
             <div className="mt-4 flex gap-2">
-              <button className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-dashed border-border py-2 text-xs font-medium text-muted-foreground">
-                <Upload className="h-3.5 w-3.5" />
-                Upload Foto
+              <button
+                type="button"
+                onClick={() => openEdit(k)}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-border py-2 text-xs font-semibold"
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+                Edit
               </button>
-              {k.status !== "Selesai" && (
+              <button
+                type="button"
+                onClick={() => onDelete(k._id)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-destructive/10 px-4 py-2 text-xs font-semibold text-destructive"
+                title="Hapus"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="mt-3">
+              {k.status === "Baru" && (
+                <button
+                  onClick={() => markProcessing(k._id)}
+                  className="w-full rounded-xl bg-warning/15 py-2.5 text-xs font-semibold text-warning"
+                >
+                  Tandai Sedang Diproses
+                </button>
+              )}
+              {k.status === "Diproses" && (
                 <button
                   onClick={() => markDone(k._id)}
-                  className="rounded-xl bg-accent px-4 py-2 text-xs font-semibold text-accent-foreground"
+                  className="w-full rounded-xl bg-accent py-2.5 text-xs font-semibold text-accent-foreground"
                 >
                   Tandai Selesai
                 </button>
@@ -148,8 +235,33 @@ function Kerusakan() {
       </div>
 
       {open && (
-        <Modal title="Lapor Kerusakan" onClose={() => setOpen(false)}>
+        <Modal title={editing ? "Edit Kerusakan" : "Lapor Kerusakan"} onClose={() => setOpen(false)}>
           <form onSubmit={onSave} className="space-y-4">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+                Nomor Kamar
+              </span>
+              <select
+                value={form.roomId}
+                onChange={(e) => setForm((p) => ({ ...p, roomId: e.target.value }))}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
+              >
+                <option value="">— Pilih —</option>
+                {(rooms.data ?? []).map((r) => (
+                  <option key={r._id} value={r._id}>
+                    {r.nomorKamar} (Lt. {r.lantai})
+                  </option>
+                ))}
+              </select>
+              {rooms.isLoading && (
+                <div className="mt-2 text-xs text-muted-foreground">Memuat kamar...</div>
+              )}
+              {rooms.isError && (
+                <div className="mt-2 text-xs text-destructive">
+                  {rooms.error instanceof Error ? rooms.error.message : "Gagal memuat kamar"}
+                </div>
+              )}
+            </label>
             <Input
               label="Judul"
               value={form.judul}

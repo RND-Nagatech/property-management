@@ -3,6 +3,13 @@ import mongoose from "mongoose";
 const ExpenseSchema = new mongoose.Schema(
   {
     tanggal: { type: Date, required: true, index: true },
+    tipeTransaksi: {
+      type: String,
+      required: true,
+      enum: ["IN", "OUT"],
+      default: "OUT",
+      index: true,
+    },
     kategori: { type: String, required: true, trim: true },
     deskripsi: { type: String, required: true, trim: true },
     jumlah: { type: Number, required: true },
@@ -12,4 +19,3 @@ const ExpenseSchema = new mongoose.Schema(
 );
 
 export const Expense = mongoose.model("Expense", ExpenseSchema);
-

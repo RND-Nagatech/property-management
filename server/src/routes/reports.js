@@ -29,7 +29,7 @@ reportsRouter.get("/finance", async (req, res, next) => {
 
     const paidStatuses = ["Terverifikasi", "paid"];
 
-    const [incomeMonthAgg, incomeDayAgg, expenseMonthAgg, expenseDayAgg, depositCutAgg] =
+    const [incomeMonthAgg, incomeDayAgg, cashMonthAgg, cashDayAgg, depositCutAgg] =
       await Promise.all([
         Payment.aggregate([
           { $match: { status: { $in: paidStatuses }, createdAt: { $gte: start, $lt: end } } },
@@ -41,11 +41,23 @@ reportsRouter.get("/finance", async (req, res, next) => {
         ]),
         Expense.aggregate([
           { $match: { tanggal: { $gte: start, $lt: end } } },
-          { $group: { _id: null, total: { $sum: "$jumlah" } } },
+          {
+            $group: {
+              _id: null,
+              masuk: { $sum: { $cond: [{ $eq: ["$tipeTransaksi", "IN"] }, "$jumlah", 0] } },
+              keluar: { $sum: { $cond: [{ $eq: ["$tipeTransaksi", "OUT"] }, "$jumlah", 0] } },
+            },
+          },
         ]),
         Expense.aggregate([
           { $match: { tanggal: { $gte: dayStart, $lt: dayEnd } } },
-          { $group: { _id: null, total: { $sum: "$jumlah" } } },
+          {
+            $group: {
+              _id: null,
+              masuk: { $sum: { $cond: [{ $eq: ["$tipeTransaksi", "IN"] }, "$jumlah", 0] } },
+              keluar: { $sum: { $cond: [{ $eq: ["$tipeTransaksi", "OUT"] }, "$jumlah", 0] } },
+            },
+          },
         ]),
         Deposit.aggregate([
           { $match: { status: "Dipakai", createdAt: { $gte: start, $lt: end } } },
@@ -55,8 +67,10 @@ reportsRouter.get("/finance", async (req, res, next) => {
 
     const pendapatanBulanan = incomeMonthAgg[0]?.total ?? 0;
     const pendapatanHariIni = incomeDayAgg[0]?.total ?? 0;
-    const biayaBulanan = expenseMonthAgg[0]?.total ?? 0;
-    const biayaHariIni = expenseDayAgg[0]?.total ?? 0;
+    const kasMasukBulanan = cashMonthAgg[0]?.masuk ?? 0;
+    const kasKeluarBulanan = cashMonthAgg[0]?.keluar ?? 0;
+    const kasMasukHariIni = cashDayAgg[0]?.masuk ?? 0;
+    const kasKeluarHariIni = cashDayAgg[0]?.keluar ?? 0;
     const potonganDepositBulanan = depositCutAgg[0]?.total ?? 0;
 
     // breakdown per tipe kamar (booking) berdasarkan total booking field
@@ -131,9 +145,17 @@ reportsRouter.get("/finance", async (req, res, next) => {
         month: `${year}-${String(month).padStart(2, "0")}`,
         pendapatanHariIni,
         pendapatanBulanan,
-        biayaHariIni,
-        biayaBulanan,
-        labaBulanan: pendapatanBulanan - biayaBulanan,
+        // Legacy fields: biaya = kas keluar (uang keluar)
+        biayaHariIni: kasKeluarHariIni,
+        biayaBulanan: kasKeluarBulanan,
+        // New cashflow fields
+        kasMasukHariIni,
+        kasKeluarHariIni,
+        saldoKasHariIni: kasMasukHariIni - kasKeluarHariIni,
+        kasMasukBulanan,
+        kasKeluarBulanan,
+        saldoKasBulanan: kasMasukBulanan - kasKeluarBulanan,
+        labaBulanan: pendapatanBulanan - kasKeluarBulanan,
         potonganDepositBulanan,
         byRoomType,
         payments,

@@ -63,6 +63,52 @@ adminPaymentsRouter.get("/pending-count", async (_req, res, next) => {
   }
 });
 
+// Admin submits transfer proof for a booking (walk-in/admin booking transfer flow)
+adminPaymentsRouter.post("/submit-proof", async (req, res, next) => {
+  try {
+    const body = req.body ?? {};
+    const bookingId = String(body.bookingId ?? "");
+    const metode = String(body.metode ?? "transfer_bank").trim();
+    const jumlah = Number(body.jumlah ?? 0) || 0;
+    const proofImage = String(body.proofImage ?? "").trim();
+
+    if (!bookingId) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "bookingId wajib" } });
+    if (!isObjectId(bookingId)) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "bookingId tidak valid" } });
+    if (!metode) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "metode wajib" } });
+    if (jumlah <= 0) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "jumlah wajib" } });
+    if (!proofImage) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "proofImage wajib" } });
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
+
+    // Create or update latest payment for this booking
+    const invoice = String(body.invoice ?? booking.kodeBooking ?? "").trim() || `INV-${booking._id}`;
+    const created = await Payment.create({
+      invoice,
+      bookingId: booking._id,
+      tamuId: booking.tamuId,
+      customerId: booking.customerId,
+      metode,
+      jumlah,
+      proofImage,
+      status: "waiting_confirmation",
+      catatan: String(body.catatan ?? "Upload bukti transfer oleh admin"),
+    });
+
+    booking.paymentStatus = "waiting_confirmation";
+    booking.bookingStatus = "waiting_confirmation";
+    booking.status = "Menunggu";
+    await booking.save();
+
+    res.status(201).json({ data: created.toObject() });
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: { code: "DUPLICATE", message: "Invoice sudah digunakan" } });
+    }
+    next(err);
+  }
+});
+
 adminPaymentsRouter.post("/:id/verify", async (req, res, next) => {
   try {
     if (!isObjectId(req.params.id)) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "id tidak valid" } });
@@ -78,15 +124,22 @@ adminPaymentsRouter.post("/:id/verify", async (req, res, next) => {
     const booking = await Booking.findById(payment.bookingId).populate("roomTypeId");
     if (booking) {
       booking.paymentStatus = "paid";
-      booking.bookingStatus = "confirmed";
+      const isCancelled = booking.bookingStatus === "cancelled" || booking.status === "Dibatalkan";
+      if (!isCancelled) {
+        booking.bookingStatus = "confirmed";
+      } else {
+        // Customer already cancelled; keep it cancelled and mark as non-refundable (no refund flow here).
+        booking.refundStatus = "NO_REFUND";
+      }
       booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
       await booking.save();
     }
 
     // WhatsApp: kirim invoice PDF resmi setelah verify (hindari double send)
     try {
+      const isCancelled = booking?.bookingStatus === "cancelled" || booking?.status === "Dibatalkan";
       const toPhone = String(booking?.guestSnapshot?.noHp ?? "").trim();
-      if (booking && toPhone && !payment.invoiceEmailSent) {
+      if (booking && !isCancelled && toPhone && !payment.invoiceEmailSent) {
         const roomType = typeof booking.roomTypeId === "object" ? booking.roomTypeId : null;
         const checkIn = booking.checkIn;
         const checkOut = booking.checkOut;
@@ -166,13 +219,13 @@ adminPaymentsRouter.post("/:id/reject", async (req, res, next) => {
     const booking = await Booking.findById(payment.bookingId);
     if (booking) {
       booking.paymentStatus = "failed";
-      booking.bookingStatus = "pending_payment";
+      const isCancelled = booking.bookingStatus === "cancelled" || booking.status === "Dibatalkan";
+      if (!isCancelled) {
+        booking.bookingStatus = "pending_payment";
+      }
+      // Do not revive cancelled booking; keep legacy status consistent.
       booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
       await booking.save();
-
-      if (booking.roomId) {
-        await Room.findByIdAndUpdate(booking.roomId, { status: "tersedia" });
-      }
     }
 
     // WhatsApp: (opsional) notifikasi pembayaran ditolak

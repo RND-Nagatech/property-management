@@ -14,6 +14,19 @@ export type Deposit = {
   refundJumlah?: number;
   status: DepositStatus;
   catatan?: string;
+  type?: "NONE" | "CASH" | "KTP" | "SIM" | "PASSPORT";
+  amount?: number;
+  identityName?: string;
+  identityNumber?: string;
+  note?: string;
+  receivedAt?: string | Date | null;
+  receivedBy?: string;
+  returnStatus?: "PENDING" | "RETURNED" | "PARTIALLY_DEDUCTED" | "NOT_RETURNED" | null;
+  returnedAmount?: number;
+  deductedAmount?: number;
+  returnNote?: string;
+  returnedAt?: string | Date | null;
+  returnedBy?: string;
 };
 
 export function useDeposits() {

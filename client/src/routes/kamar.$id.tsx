@@ -126,6 +126,7 @@ function RoomDetailContent({ room }: { room: any }) {
   }, [availability.data]);
 
   const [calError, setCalError] = React.useState<string>("");
+  const [hoverDate, setHoverDate] = React.useState<string>("");
 
   function addDaysYmd(ymd: string, days: number) {
     const [y, m, d] = ymd.split("-").map((n) => Number(n));
@@ -150,12 +151,45 @@ function RoomDetailContent({ room }: { room: any }) {
     return "";
   }
 
+  const availabilityLabel = React.useMemo(() => {
+    const ymd = hoverDate || checkin || "";
+    if (!ymd) return "";
+    const day = availabilityMap[ymd];
+    if (!day) return `${formatDateId(ymd)}: Memuat ketersediaan...`;
+    if (day.status === "FULL_BOOKED") return `${formatDateId(ymd)}: Penuh`;
+    if (day.status === "PARTIAL_BOOKED") return `${formatDateId(ymd)}: Terbatas (Sisa ${day.available} kamar)`;
+    if (day.status === "AVAILABLE") return `${formatDateId(ymd)}: Tersedia (${day.available} kamar)`;
+    return `${formatDateId(ymd)}: -`;
+  }, [availabilityMap, checkin, hoverDate]);
+
   const galleryRaw = room.galeriGambar?.length
     ? room.galeriGambar
     : room.gambarThumbnail
       ? [room.gambarThumbnail]
       : [];
   const gallery = galleryRaw.map((g: string) => resolveMediaUrl(g)).filter(Boolean);
+
+  const depositDesc = (() => {
+    const policy = room.depositPolicy;
+    const enabled = Boolean(policy?.enabled) || Number(room.depositDefault ?? 0) > 0 || room.deposit?.type === "DOCUMENT";
+    if (!enabled) return "Tidak ada deposit";
+    const allowed: string[] = Array.isArray(policy?.allowedTypes) ? policy.allowedTypes : [];
+    const derived: string[] = [];
+    if (Number(room.depositDefault ?? 0) > 0) derived.push("CASH");
+    if (room.deposit?.type === "DOCUMENT" && room.deposit.documentType) derived.push(room.deposit.documentType);
+    const types = allowed.length ? allowed : derived;
+    const labels = types
+      .map((t) => {
+        if (t === "CASH") return "Uang tunai";
+        if (t === "PASSPORT") return "Paspor";
+        return t;
+      })
+      .join(", ");
+    const cashAmount = Number(policy?.cashAmount ?? 0) || Number(room.depositDefault ?? 0) || 0;
+    const amountText = types.includes("CASH") && cashAmount > 0 ? ` (± ${formatRupiah(cashAmount)})` : "";
+    const note = String(policy?.note ?? "").trim();
+    return note ? `${labels}${amountText} • ${note}` : `${labels}${amountText}`;
+  })();
   return (
     <div className="min-h-screen pb-28 md:pb-12">
       <TopBar />
@@ -241,7 +275,7 @@ function RoomDetailContent({ room }: { room: any }) {
                 <Policy
                   icon={ShieldCheck}
                   title="Deposit"
-                  desc={`${formatRupiah(room.depositDefault ?? 0)} (refundable)`}
+                  desc={depositDesc}
                 />
               </div>
             </section>
@@ -350,13 +384,15 @@ function RoomDetailContent({ room }: { room: any }) {
                             const disabled = isPast || isFull;
 
 	                            return (
-	                              <button
-	                                key={idx}
-	                                type="button"
-	                                disabled={disabled}
-	                                onClick={() => {
-	                                  setCalError("");
-	                                  if (disabled) return;
+		                              <button
+		                                key={idx}
+		                                type="button"
+		                                disabled={disabled}
+		                                onMouseEnter={() => setHoverDate(ymd)}
+		                                onMouseLeave={() => setHoverDate("")}
+		                                onClick={() => {
+		                                  setCalError("");
+		                                  if (disabled) return;
 	                                  // Range picker: klik pertama = check-in, klik kedua = check-out.
 	                                  // Jika range sudah terisi dan user klik tanggal lagi, mulai ulang dari check-in.
 	                                  if (!checkin || (checkin && checkout)) {
@@ -385,14 +421,14 @@ function RoomDetailContent({ room }: { room: any }) {
 	                                className={`aspect-square rounded-md border border-border px-0.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${
 	                                  selectedCls
 	                                } ${isStart || isEnd ? "ring-2 ring-primary/30" : ""}`}
-	                                title={
-	                                  isFull
-	                                    ? "FULL BOOKED"
-	                                    : availabilityMap[ymd]
-	                                      ? `${availabilityMap[ymd].booked} dipesan, ${availabilityMap[ymd].available} tersedia`
-	                                      : ""
-	                                }
-	                              >
+		                                title={
+		                                  isFull
+		                                    ? "Penuh"
+		                                    : availabilityMap[ymd]
+		                                      ? `${availabilityMap[ymd].booked} dipesan, ${availabilityMap[ymd].available} tersedia`
+		                                      : ""
+		                                }
+		                              >
 	                                {day}
 	                              </button>
                             );
@@ -410,25 +446,30 @@ function RoomDetailContent({ room }: { room: any }) {
 	                            : "Gagal memuat ketersediaan"}
 	                        </div>
 	                      )}
-	                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-	                        <span className="inline-flex items-center gap-1">
-	                          <span className="h-2.5 w-2.5 rounded bg-success/30 ring-1 ring-success/40" />{" "}
-	                          Tersedia
-	                        </span>
-	                        <span className="inline-flex items-center gap-1">
-	                          <span className="h-2.5 w-2.5 rounded bg-warning/30 ring-1 ring-warning/40" />{" "}
-	                          Sebagian dipesan
-	                        </span>
-	                        <span className="inline-flex items-center gap-1">
-	                          <span className="h-2.5 w-2.5 rounded bg-destructive/25 ring-1 ring-destructive/30" />{" "}
-	                          FULL BOOKED
-	                        </span>
-	                        <span className="inline-flex items-center gap-1">
-	                          <span className="h-2.5 w-2.5 rounded bg-primary ring-1 ring-primary/40" />{" "}
-	                          Dipilih
-	                        </span>
-	                      </div>
-	                      {calError && <div className="text-xs text-destructive mt-2">{calError}</div>}
+		                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+		                        <span className="inline-flex items-center gap-1">
+		                          <span className="h-2.5 w-2.5 rounded bg-success/30 ring-1 ring-success/40" />{" "}
+		                          Tersedia
+		                        </span>
+		                        <span className="inline-flex items-center gap-1">
+		                          <span className="h-2.5 w-2.5 rounded bg-warning/30 ring-1 ring-warning/40" />{" "}
+		                          Terbatas
+		                        </span>
+		                        <span className="inline-flex items-center gap-1">
+		                          <span className="h-2.5 w-2.5 rounded bg-destructive/25 ring-1 ring-destructive/30" />{" "}
+		                          Penuh
+		                        </span>
+		                        <span className="inline-flex items-center gap-1">
+		                          <span className="h-2.5 w-2.5 rounded bg-primary ring-1 ring-primary/40" />{" "}
+		                          Dipilih
+		                        </span>
+		                      </div>
+                          {availabilityLabel && (
+                            <div className="mt-2 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                              {availabilityLabel}
+                            </div>
+                          )}
+		                      {calError && <div className="text-xs text-destructive mt-2">{calError}</div>}
 	                      <div className="mt-3 grid grid-cols-2 gap-2">
 	                        <button
 	                          type="button"

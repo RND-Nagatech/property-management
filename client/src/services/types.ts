@@ -17,6 +17,12 @@ export type RoomType = {
     amount: number;
     documentType: "KTP" | "PASSPORT" | "SIM" | null;
   };
+  depositPolicy?: {
+    enabled: boolean;
+    allowedTypes: ("CASH" | "KTP" | "SIM" | "PASSPORT")[];
+    cashAmount?: number;
+    note?: string;
+  };
   kebijakanRefund: string;
   kebijakanReschedule: string;
   jamCheckIn: string;

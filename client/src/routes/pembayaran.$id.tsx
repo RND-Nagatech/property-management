@@ -9,6 +9,7 @@ import { apiRequest } from "@/services/api";
 import { resolveMediaUrl } from "@/lib/media";
 import { useSettings } from "@/hooks/useSettings";
 import heroImg from "@/assets/hero-villa.jpg";
+import { labelEnum } from "@/lib/labels";
 
 export const Route = createFileRoute("/pembayaran/$id")({
   head: () => ({ meta: [{ title: "Pembayaran — Stayly" }] }),
@@ -222,12 +223,7 @@ function Payment() {
             <div className="flex items-center gap-2 rounded-xl bg-warning/10 px-4 py-3 text-sm">
               <div className="h-2 w-2 rounded-full bg-warning" />
               <span className="font-medium">
-                Status:{" "}
-                {data?.paymentStatus === "paid"
-                  ? "Pembayaran terverifikasi"
-                  : data?.paymentStatus === "waiting_confirmation"
-                    ? "Menunggu konfirmasi"
-                    : "Menunggu pembayaran"}
+                Status: {labelEnum(data?.paymentStatus || "unpaid")}
               </span>
             </div>
           </div>

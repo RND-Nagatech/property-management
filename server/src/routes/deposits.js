@@ -32,7 +32,10 @@ depositsRouter.post("/", async (req, res, next) => {
     const body = req.body ?? {};
     const required = ["bookingId", "jumlah"];
     for (const k of required) {
-      if (!body[k]) return res.status(400).json({ error: { code: "BAD_REQUEST", message: `${k} wajib` } });
+      const v = body[k];
+      if (v === undefined || v === null || v === "") {
+        return res.status(400).json({ error: { code: "BAD_REQUEST", message: `${k} wajib` } });
+      }
     }
 
     // If tamuId not provided (customer booking), resolve snapshot/customerId from booking

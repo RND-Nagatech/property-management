@@ -162,8 +162,10 @@ bookingsRouter.post("/", requireAuth, async (req, res, next) => {
     const customer = await Customer.findById(userId).select("-passwordHash -__v").lean();
     if (!customer) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "User tidak ditemukan" } });
 
-    // Find an available physical room of this type that has no overlapping active booking
-    const rooms = await Room.find({ roomTypeId: body.roomTypeId, status: "tersedia" })
+    // Find a physical room of this type that has no overlapping active booking.
+    // IMPORTANT: Room.status is physical/unit status. Do not mark room as globally "dipesan" for a date range.
+    // We only exclude rooms under maintenance.
+    const rooms = await Room.find({ roomTypeId: body.roomTypeId, status: { $ne: "perbaikan" } })
       .sort({ nomorKamar: 1 })
       .select({ _id: 1 })
       .lean();
@@ -187,7 +189,7 @@ bookingsRouter.post("/", requireAuth, async (req, res, next) => {
       return res.status(409).json({ error: { code: "NO_AVAILABILITY", message: "Kamar tidak tersedia di tanggal tersebut" } });
     }
 
-    const roomType = await RoomType.findById(body.roomTypeId).select({ hargaDefault: 1, depositDefault: 1 }).lean();
+    const roomType = await RoomType.findById(body.roomTypeId).select({ hargaDefault: 1 }).lean();
     if (!roomType) {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Tipe kamar tidak ditemukan" } });
     }
@@ -195,9 +197,8 @@ bookingsRouter.post("/", requireAuth, async (req, res, next) => {
     const msDay = 24 * 60 * 60 * 1000;
     const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / msDay));
     const pricePerNight = Number(roomType.hargaDefault ?? 0);
-    const deposit = Number(roomType.depositDefault ?? 0);
     const subtotal = pricePerNight * nights;
-    const total = subtotal + deposit;
+    const total = subtotal;
 
     const kodeBooking = await generateBookingCode(new Date());
     const bookingStatus = "pending_payment";
@@ -227,7 +228,7 @@ bookingsRouter.post("/", requireAuth, async (req, res, next) => {
       status: mapBookingStatusToLegacy(bookingStatus),
     });
 
-    await Room.findByIdAndUpdate(assignedRoomId, { status: "dipesan" });
+    // Do not change Room.status here. Availability is calculated by booking overlap.
     res.status(201).json({ data: created.toObject() });
   } catch (err) {
     if (err?.code === 11000) {
@@ -313,20 +314,19 @@ bookingsRouter.post("/:id/cancel", requireAuth, async (req, res, next) => {
       return res.status(403).json({ error: { code: "FORBIDDEN", message: "Tidak punya akses" } });
     }
 
-    // MVP: customer hanya boleh cancel sebelum confirmed/checked-in
+    // Customer hanya boleh cancel sebelum check-in.
     const bs = booking.bookingStatus ?? "pending_payment";
-    if (bs === "confirmed" || bs === "checked_in" || bs === "checked_out") {
+    if (bs === "checked_in" || bs === "checked_out" || bs === "cancelled") {
       return res.status(409).json({ error: { code: "NOT_ALLOWED", message: "Booking tidak bisa dibatalkan" } });
     }
 
     booking.bookingStatus = "cancelled";
-    booking.paymentStatus = booking.paymentStatus === "paid" ? booking.paymentStatus : "failed";
+    // Jika sudah paid/approved: tidak ada refund, status payment tetap.
+    // Jika belum paid: anggap batal sebelum bayar.
+    booking.paymentStatus = booking.paymentStatus === "paid" ? booking.paymentStatus : booking.paymentStatus;
+    booking.refundStatus = booking.paymentStatus === "paid" ? "NO_REFUND" : booking.refundStatus;
     booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
     await booking.save();
-
-    if (booking.roomId) {
-      await Room.findByIdAndUpdate(booking.roomId, { status: "tersedia" });
-    }
 
     res.json({ data: booking.toObject() });
   } catch (err) {

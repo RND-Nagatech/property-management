@@ -39,6 +39,13 @@ const BookingSchema = new mongoose.Schema(
       default: "unpaid",
       index: true,
     },
+    refundStatus: {
+      type: String,
+      required: false,
+      enum: ["NO_REFUND", "REFUNDED", "PENDING", ""],
+      default: "",
+      index: true,
+    },
     status: {
       type: String,
       required: true,

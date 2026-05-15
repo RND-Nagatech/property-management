@@ -114,7 +114,8 @@ function MyBookings() {
             const st = labelStatus(b);
             const bs = String(b.bookingStatus ?? "");
             const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${b._id}`;
-            const canCancel = bs === "pending_payment" || bs === "waiting_confirmation";
+            const canCancel =
+              bs === "pending_payment" || bs === "waiting_confirmation" || bs === "confirmed";
             const paymentStatus = String(b.paymentStatus ?? "");
             const canAccessProof = paymentStatus === "paid";
             return (
@@ -164,9 +165,11 @@ function MyBookings() {
                             type="button"
                             disabled={cancelBooking.isPending}
                             onClick={() => {
+                              const paid = paymentStatus === "paid";
                               toast("Batalkan booking ini?", {
-                                description:
-                                  "Booking yang dibatalkan tidak bisa dipulihkan.",
+                                description: paid
+                                  ? "Pembayaran sudah diverifikasi. Jika pesanan dibatalkan, dana tidak dapat dikembalikan."
+                                  : "Booking yang dibatalkan tidak bisa dipulihkan.",
                                 action: {
                                   label: "Batalkan",
                                   onClick: () => cancelBooking.mutate(b._id),

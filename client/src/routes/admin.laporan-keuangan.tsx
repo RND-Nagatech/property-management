@@ -52,8 +52,10 @@ function Laporan() {
   <table>
     <tbody>
       <tr><th>Pendapatan Bulanan</th><td class="right">${formatRupiah(report.data?.pendapatanBulanan ?? 0)}</td></tr>
-      <tr><th>Biaya Bulanan</th><td class="right">${formatRupiah(report.data?.biayaBulanan ?? 0)}</td></tr>
-      <tr><th>Laba Bersih</th><td class="right">${formatRupiah(report.data?.labaBulanan ?? 0)}</td></tr>
+      <tr><th>Kas Operasional Masuk</th><td class="right">${formatRupiah(report.data?.kasMasukBulanan ?? 0)}</td></tr>
+      <tr><th>Kas Operasional Keluar</th><td class="right">${formatRupiah(report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0)}</td></tr>
+      <tr><th>Saldo Kas Operasional</th><td class="right">${formatRupiah(report.data?.saldoKasBulanan ?? 0)}</td></tr>
+      <tr><th>Laba Bersih (Pendapatan - Kas Keluar)</th><td class="right">${formatRupiah(report.data?.labaBulanan ?? 0)}</td></tr>
     </tbody>
   </table>
 
@@ -70,16 +72,16 @@ function Laporan() {
     </tbody>
   </table>
 
-  <h2 style="margin-top:18px">Biaya Operasional</h2>
+  <h2 style="margin-top:18px">Kas Operasional</h2>
   <table>
-    <thead><tr><th>Tanggal</th><th>Kategori</th><th>Deskripsi</th><th class="right">Jumlah</th><th>Metode</th></tr></thead>
+    <thead><tr><th>Tanggal</th><th>Tipe</th><th>Kategori</th><th>Deskripsi</th><th class="right">Nominal</th><th>Metode</th></tr></thead>
     <tbody>
       ${rowsExpenses
         .map(
           (e) =>
-            `<tr><td>${String(e.tanggal ?? "").slice(0, 10)}</td><td>${e.kategori ?? "-"}</td><td>${e.deskripsi ?? "-"}</td><td class="right">${formatRupiah(e.jumlah ?? 0)}</td><td>${(e).metode ?? "-"}</td></tr>`
+            `<tr><td>${String(e.tanggal ?? "").slice(0, 10)}</td><td>${(e).tipeTransaksi === "IN" ? "Uang Masuk" : "Uang Keluar"}</td><td>${e.kategori ?? "-"}</td><td>${e.deskripsi ?? "-"}</td><td class="right">${formatRupiah(e.jumlah ?? 0)}</td><td>${(e).metode ?? "-"}</td></tr>`
         )
-        .join("") || `<tr><td colspan="5">Tidak ada data biaya operasional.</td></tr>`}
+        .join("") || `<tr><td colspan="6">Tidak ada data kas operasional.</td></tr>`}
     </tbody>
   </table>
 
@@ -127,8 +129,9 @@ function Laporan() {
       <div className="grid gap-4 md:grid-cols-3">
         {[
           { l: "Pendapatan", v: report.data?.pendapatanBulanan ?? 0, c: "text-accent" },
-          { l: "Biaya Operasional", v: report.data?.biayaBulanan ?? 0, c: "text-warning" },
-          { l: "Laba Bersih", v: report.data?.labaBulanan ?? 0, c: "text-foreground" },
+          { l: "Kas Masuk", v: report.data?.kasMasukBulanan ?? 0, c: "text-accent" },
+          { l: "Kas Keluar", v: report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0, c: "text-warning" },
+          { l: "Saldo Kas", v: report.data?.saldoKasBulanan ?? 0, c: "text-foreground" },
         ].map((s) => (
           <div key={s.l} className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)]">
             <div className="text-xs text-muted-foreground">{s.l}</div>
@@ -260,12 +263,13 @@ function Laporan() {
       </div>
 
       <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] overflow-x-auto">
-        <h3 className="text-base font-bold mb-4">Detail Biaya Operasional (Bulan ini)</h3>
+        <h3 className="text-base font-bold mb-4">Detail Kas Operasional (Bulan ini)</h3>
         {!report.isLoading && !report.isError && (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs uppercase text-muted-foreground">
                 <th className="pb-3 font-semibold">Tanggal</th>
+                <th className="pb-3 font-semibold">Tipe</th>
                 <th className="pb-3 font-semibold">Kategori</th>
                 <th className="pb-3 font-semibold">Deskripsi</th>
                 <th className="pb-3 font-semibold text-right">Jumlah</th>
@@ -275,6 +279,7 @@ function Laporan() {
               {(report.data?.expenses ?? []).map((e) => (
                 <tr key={e._id}>
                   <td className="py-3.5 text-muted-foreground">{String(e.tanggal ?? "").slice(0, 10)}</td>
+                  <td className="py-3.5 text-muted-foreground">{e.tipeTransaksi === "IN" ? "Uang Masuk" : "Uang Keluar"}</td>
                   <td className="py-3.5 font-medium">{e.kategori ?? "-"}</td>
                   <td className="py-3.5 text-muted-foreground">{e.deskripsi ?? "-"}</td>
                   <td className="py-3.5 text-right font-semibold">{formatRupiah(e.jumlah ?? 0)}</td>
@@ -282,8 +287,8 @@ function Laporan() {
               ))}
               {(report.data?.expenses ?? []).length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                    Belum ada biaya operasional pada periode ini.
+                  <td colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                    Belum ada transaksi kas operasional pada periode ini.
                   </td>
                 </tr>
               )}

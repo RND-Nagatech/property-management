@@ -12,9 +12,10 @@ import {
 import { formatRupiah } from "@/lib/currency";
 import { useDashboard } from "@/hooks/useDashboard";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useSettings } from "@/hooks/useSettings";
 
 export const Route = createFileRoute("/admin/")({
-  head: () => ({ meta: [{ title: "Dashboard — Stayly Admin" }] }),
+  head: () => ({ meta: [{ title: "Dashboard Admin" }] }),
   component: Dashboard,
 });
 
@@ -25,6 +26,9 @@ function formatTodayId(date = new Date()) {
 function Dashboard() {
   const adminLoggedIn = useAdminAuth();
   const dash = useDashboard(adminLoggedIn);
+  const settingsQuery = useSettings();
+  const byKey = new Map((settingsQuery.data ?? []).map((s) => [s.key, s.value] as const));
+  const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
 
   const totals = dash.data?.totals;
   const trend = dash.data?.pendapatanTrend14 ?? [];
@@ -67,7 +71,7 @@ function Dashboard() {
         <div>
           <h1 className="text-2xl font-bold md:text-3xl">Selamat datang kembali 👋</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ringkasan operasional Stayly Resort hari ini
+            Ringkasan operasional {propertyName} hari ini
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card px-4 py-2 text-sm">

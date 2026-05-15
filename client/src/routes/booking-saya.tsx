@@ -11,7 +11,7 @@ import { resolveMediaUrl } from "@/lib/media";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/booking-saya")({
-  head: () => ({ meta: [{ title: "Booking Saya — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Booking Saya" }] }),
   component: MyBookings,
 });
 

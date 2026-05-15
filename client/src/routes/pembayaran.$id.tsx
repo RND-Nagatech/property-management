@@ -12,7 +12,7 @@ import heroImg from "@/assets/hero-villa.jpg";
 import { labelEnum } from "@/lib/labels";
 
 export const Route = createFileRoute("/pembayaran/$id")({
-  head: () => ({ meta: [{ title: "Pembayaran — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Pembayaran" }] }),
   component: Payment,
 });
 

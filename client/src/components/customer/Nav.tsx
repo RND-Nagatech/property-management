@@ -4,6 +4,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 import { ChevronDown } from "lucide-react";
 import { CustomerMenu } from "@/components/customer/CustomerMenu";
+import { useSettings } from "@/hooks/useSettings";
+import { resolveMediaUrl } from "@/lib/media";
 
 function getNavItems() {
   return [
@@ -44,14 +46,27 @@ export function MobileNav() {
 export function TopBar() {
   const isLoggedIn = useAuth();
   const { data: me } = useMe();
+  const settings = useSettings();
+  const byKey = (() => {
+    const map = new Map<string, unknown>();
+    for (const s of settings.data ?? []) map.set(s.key, s.value);
+    return map;
+  })();
+  const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
+  const logo = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? "").trim());
+  const initial = propertyName.trim().slice(0, 1).toUpperCase() || "P";
   return (
     <header className="sticky top-0 z-30 glass border-b border-border">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <Link to="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-            S
+            {logo ? (
+              <img src={logo} alt="" className="h-5 w-5 rounded-sm object-contain" />
+            ) : (
+              initial
+            )}
           </div>
-          <span className="text-base font-bold tracking-tight">Stayly</span>
+          <span className="text-base font-bold tracking-tight">{propertyName}</span>
         </Link>
         <nav className="hidden md:flex items-center gap-7 text-sm font-medium">
           <Link to="/" className="hover:text-accent">

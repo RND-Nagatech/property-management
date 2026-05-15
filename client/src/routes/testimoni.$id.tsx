@@ -9,7 +9,7 @@ import { isLoggedIn } from "@/services/auth";
 import { useCreateTestimonial, useTestimonialByBooking } from "@/hooks/useTestimonials";
 
 export const Route = createFileRoute("/testimoni/$id")({
-  head: () => ({ meta: [{ title: "Beri Testimoni — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Beri Testimoni" }] }),
   component: TestimoniCustomer,
 });
 
@@ -125,4 +125,3 @@ function TestimoniCustomer() {
     </div>
   );
 }
-

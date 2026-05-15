@@ -26,6 +26,8 @@ import { useAdminMe } from "@/hooks/useAdminMe";
 import { AdminMenu } from "@/components/admin/AdminMenu";
 import { clearAdminToken } from "@/services/admin-auth";
 import { usePendingPaymentsCount } from "@/hooks/usePendingPaymentsCount";
+import { useSettings } from "@/hooks/useSettings";
+import { resolveMediaUrl } from "@/lib/media";
 
 type Item = { to: string; label: string; icon: React.ElementType };
 
@@ -83,6 +85,15 @@ export function AdminLayout() {
   const me = useAdminMe();
   const pending = usePendingPaymentsCount();
   const pendingCount = pending.data?.count ?? 0;
+  const settings = useSettings();
+  const byKey = useMemo(() => {
+    const map = new Map<string, unknown>();
+    for (const s of settings.data ?? []) map.set(s.key, s.value);
+    return map;
+  }, [settings.data]);
+  const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
+  const logo = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? "").trim());
+  const initial = propertyName.trim().slice(0, 1).toUpperCase() || "P";
   const adminLabel = useMemo(() => (me.data as any)?.nama || (me.data as any)?.username || "Admin", [me.data]);
   const [mounted, setMounted] = useState(false);
 
@@ -118,10 +129,14 @@ export function AdminLayout() {
         <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-5">
           <Link to="/admin" className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-              S
+              {logo ? (
+                <img src={logo} alt="" className="h-5 w-5 rounded-sm object-contain" />
+              ) : (
+                initial
+              )}
             </div>
             <div>
-              <div className="text-sm font-bold text-white">Stayly Admin</div>
+              <div className="text-sm font-bold text-white">{propertyName} Admin</div>
               <div className="text-[10px] text-sidebar-foreground/60">v2.6</div>
             </div>
           </Link>

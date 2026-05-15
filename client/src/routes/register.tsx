@@ -3,14 +3,22 @@ import { useState, type InputHTMLAttributes } from "react";
 import { ArrowLeft } from "lucide-react";
 import { apiRequest } from "@/services/api";
 import { setAuthToken } from "@/services/auth";
+import { useSettings } from "@/hooks/useSettings";
 
 export const Route = createFileRoute("/register")({
-  head: () => ({ meta: [{ title: "Daftar — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Daftar" }] }),
   component: Register,
 });
 
 function Register() {
   const navigate = useNavigate();
+  const settings = useSettings();
+  const byKey = (() => {
+    const map = new Map<string, unknown>();
+    for (const s of settings.data ?? []) map.set(s.key, s.value);
+    return map;
+  })();
+  const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
   const search = Route.useSearch() as any;
   const redirectTo = typeof search?.redirectTo === "string" && search.redirectTo ? search.redirectTo : "/";
 
@@ -67,7 +75,7 @@ function Register() {
           <ArrowLeft className="h-4 w-4" /> Kembali
         </Link>
         <div className="mt-6">
-          <h1 className="text-2xl font-bold">Buat Akun Stayly</h1>
+          <h1 className="text-2xl font-bold">Buat Akun {propertyName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Daftar untuk pengalaman booking yang lebih cepat.
           </p>

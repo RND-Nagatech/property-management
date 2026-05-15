@@ -9,7 +9,7 @@ import { resolveMediaUrl } from "@/lib/media";
 import heroImg from "@/assets/hero-villa.jpg";
 
 export const Route = createFileRoute("/kamar/")({
-  head: () => ({ meta: [{ title: "Pilih Kamar — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Pilih Kamar" }] }),
   component: RoomList,
 });
 

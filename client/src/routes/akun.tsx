@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useMe } from "@/hooks/useMe";
 
 export const Route = createFileRoute("/akun")({
-  head: () => ({ meta: [{ title: "Akun — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Akun" }] }),
   component: AccountPage,
 });
 

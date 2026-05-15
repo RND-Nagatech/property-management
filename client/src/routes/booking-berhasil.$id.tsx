@@ -10,7 +10,7 @@ import { resolveMediaUrl } from "@/lib/media";
 import heroImg from "@/assets/hero-villa.jpg";
 
 export const Route = createFileRoute("/booking-berhasil/$id")({
-  head: () => ({ meta: [{ title: "Booking Berhasil — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Booking Berhasil" }] }),
   component: Success,
 });
 

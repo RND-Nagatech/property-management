@@ -2,17 +2,24 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import heroImg from "@/assets/hero-villa.jpg";
+import { useSettings } from "@/hooks/useSettings";
+import { resolveMediaUrl } from "@/lib/media";
 import { apiRequest } from "@/services/api";
 import { clearAdminToken, getAdminToken, setAdminToken } from "@/services/admin-auth";
 
 export const Route = createFileRoute("/admin-login")({
   head: () => ({
-    meta: [{ title: "Login Admin — Stayly" }],
+    meta: [{ title: "Login Admin" }],
   }),
   component: AdminLogin,
 });
 
 function AdminLogin() {
+  const settingsQuery = useSettings();
+  const byKey = new Map((settingsQuery.data ?? []).map((s) => [s.key, s.value] as const));
+  const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
+  const logoUrl = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? ""));
+
   // NOTE:
   // Jangan auto-redirect berdasarkan token yang tersimpan.
   // Token yang expired/invalid bisa menyebabkan loop /admin <-> /admin-login dan halaman berkedip.
@@ -74,10 +81,18 @@ function AdminLogin() {
         <div className="absolute inset-0 bg-gradient-to-br from-primary/70 to-primary/30" />
         <div className="relative z-10 flex h-full flex-col justify-between p-10 text-white">
           <Link to="/" className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-              S
-            </div>
-            <span className="font-bold text-lg">Stayly</span>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={propertyName}
+                className="h-9 w-9 rounded-lg object-cover bg-white/10"
+              />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
+                {(propertyName[0] ?? "P").toUpperCase()}
+              </div>
+            )}
+            <span className="font-bold text-lg">{propertyName}</span>
           </Link>
           <div>
             <h2 className="text-3xl font-bold">Panel Admin</h2>
@@ -91,10 +106,18 @@ function AdminLogin() {
       <div className="flex items-center justify-center bg-background p-6">
         <div className="w-full max-w-md">
           <Link to="/" className="md:hidden flex items-center gap-2 mb-8">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-              S
-            </div>
-            <span className="font-bold">Stayly</span>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={propertyName}
+                className="h-8 w-8 rounded-lg object-cover bg-card"
+              />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
+                {(propertyName[0] ?? "P").toUpperCase()}
+              </div>
+            )}
+            <span className="font-bold">{propertyName}</span>
           </Link>
           <h1 className="text-2xl font-bold">Login Admin</h1>
           <p className="mt-1 text-sm text-muted-foreground">

@@ -8,6 +8,7 @@ import { pickBookingSearchState } from "@/lib/booking-search-state";
 import { useRoomType } from "@/hooks/useRoomTypes";
 import { isLoggedIn } from "@/services/auth";
 import { useAvailability } from "@/hooks/useAvailability";
+import { useSettings } from "@/hooks/useSettings";
 import { resolveMediaUrl } from "@/lib/media";
 import heroImg from "@/assets/hero-villa.jpg";
 import {
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 
 export const Route = createFileRoute("/kamar/$id")({
-  head: () => ({ meta: [{ title: "Detail Kamar — Stayly" }] }),
+  head: () => ({ meta: [{ title: "Detail Kamar" }] }),
   component: RoomDetail,
 });
 
@@ -73,6 +74,13 @@ function RoomDetailContent({ room }: { room: any }) {
   const navigate = useNavigate();
   const locationState = useRouterState({ select: (s) => s.location.state });
   const searchState = pickBookingSearchState(locationState);
+  const settings = useSettings();
+  const byKey = React.useMemo(() => {
+    const map = new Map<string, unknown>();
+    for (const s of settings.data ?? []) map.set(s.key, s.value);
+    return map;
+  }, [settings.data]);
+  const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
 
   const todayYmd = React.useMemo(() => {
     const d = new Date();
@@ -225,7 +233,7 @@ function RoomDetailContent({ room }: { room: any }) {
               <div>
                 <h1 className="text-2xl font-bold md:text-3xl">{room.namaTipe}</h1>
                 <p className="mt-1 text-xs text-muted-foreground md:text-sm">
-                  {room.tipeKasur || "-"} · Stayly Resort & Villa
+                  {room.tipeKasur || "-"} · {propertyName}
                 </p>
               </div>
             </div>

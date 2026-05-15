@@ -142,7 +142,8 @@ function Index() {
           </div>
         </div>
 
-        {/* Search card */}
+        {/* Search card (disembunyikan sementara) */}
+        {false && (
         <div className="relative z-20 mx-auto -mt-32 max-w-4xl px-4 md:-mt-20">
           <div className="rounded-3xl bg-card p-3 shadow-[var(--shadow-elevated)] md:p-2">
             <div className="grid grid-cols-2 gap-2 md:grid-cols-[1fr_1fr_1fr_auto] items-center">
@@ -368,6 +369,7 @@ function Index() {
             </div>
           </div>
         </div>
+        )}
       </section>
 
       {/* Promo (disembunyikan sementara) */}
@@ -533,7 +535,7 @@ function Index() {
               </div>
               <span className="font-bold text-foreground">{propertyName || "Properti"}</span>
             </div>
-            <p>© {new Date().getFullYear()} {propertyName || "Properti"}. Semua hak dilindungi.</p>
+            <p>© {new Date().getFullYear()} Nagatech Sistem Integrator. Semua hak dilindungi.</p>
           </div>
         </div>
       </footer>

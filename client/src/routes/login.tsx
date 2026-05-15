@@ -4,12 +4,14 @@ import { useState, type InputHTMLAttributes } from "react";
 import heroImg from "@/assets/hero-villa.jpg";
 import { apiRequest } from "@/services/api";
 import { setAuthToken } from "@/services/auth";
+import { useSettings } from "@/hooks/useSettings";
+import { resolveMediaUrl } from "@/lib/media";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Masuk — Stayly" },
-      { name: "description", content: "Masuk ke akun Stayly Anda." },
+      { title: "Masuk" },
+      { name: "description", content: "Masuk ke akun Anda." },
     ],
   }),
   component: Login,
@@ -18,6 +20,15 @@ export const Route = createFileRoute("/login")({
 function Login() {
   const [show, setShow] = useState(false);
   const navigate = useNavigate();
+  const settings = useSettings();
+  const byKey = (() => {
+    const map = new Map<string, unknown>();
+    for (const s of settings.data ?? []) map.set(s.key, s.value);
+    return map;
+  })();
+  const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
+  const logo = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? "").trim());
+  const initial = propertyName.trim().slice(0, 1).toUpperCase() || "P";
   const search = Route.useSearch() as any;
   const redirectTo = typeof search?.redirectTo === "string" && search.redirectTo ? search.redirectTo : "/";
 
@@ -52,9 +63,13 @@ function Login() {
         <div className="relative z-10 flex h-full flex-col justify-between p-10 text-white">
           <Link to="/" className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-              S
+              {logo ? (
+                <img src={logo} alt="" className="h-5 w-5 rounded-sm object-contain" />
+              ) : (
+                initial
+              )}
             </div>
-            <span className="font-bold text-lg">Stayly</span>
+            <span className="font-bold text-lg">{propertyName}</span>
           </Link>
           <div>
             <h2 className="text-3xl font-bold">Selamat datang kembali</h2>
@@ -68,9 +83,13 @@ function Login() {
         <div className="w-full max-w-md">
           <Link to="/" className="md:hidden flex items-center gap-2 mb-8">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground font-bold">
-              S
+              {logo ? (
+                <img src={logo} alt="" className="h-5 w-5 rounded-sm object-contain" />
+              ) : (
+                initial
+              )}
             </div>
-            <span className="font-bold">Stayly</span>
+            <span className="font-bold">{propertyName}</span>
           </Link>
           <h1 className="text-2xl font-bold">Masuk ke akun</h1>
           <p className="mt-1 text-sm text-muted-foreground">

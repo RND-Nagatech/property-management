@@ -94,6 +94,7 @@ function RoomDetailContent({ room }: { room: any }) {
   const [checkin, setCheckin] = React.useState(() => searchState.checkin ?? "");
   const [checkout, setCheckout] = React.useState(() => searchState.checkout ?? "");
   const [showDatePicker, setShowDatePicker] = React.useState(false);
+  const [showMobileBooking, setShowMobileBooking] = React.useState(false);
   const [adults, setAdults] = React.useState(() => searchState.adults ?? 2);
   const [children, setChildren] = React.useState(() => searchState.children ?? 0);
   const [roomsCount, setRoomsCount] = React.useState(() => searchState.roomsCount ?? 1);
@@ -198,6 +199,293 @@ function RoomDetailContent({ room }: { room: any }) {
     const note = String(policy?.note ?? "").trim();
     return note ? `${labels}${amountText} • ${note}` : `${labels}${amountText}`;
   })();
+
+  const BookingCard = () => (
+    <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-soft)] overflow-visible">
+      <div className="flex items-end justify-between">
+        <div>
+          <div className="text-2xl font-bold">{formatRupiah(room.hargaDefault)}</div>
+          <div className="text-xs text-muted-foreground">per malam</div>
+        </div>
+        <span className="rounded-full bg-accent/10 px-2.5 py-1 text-[11px] font-semibold text-accent">
+          {room.kamarTersedia ?? 0} tersedia
+        </span>
+      </div>
+      {/* Date range picker */}
+      <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl border border-border p-2">
+        <div className="rounded-lg p-2 relative" ref={dateRef}>
+          <div className="text-[10px] font-bold uppercase text-muted-foreground">Check-in</div>
+          <button
+            type="button"
+            className="text-sm font-semibold w-full text-left"
+            onClick={() => setShowDatePicker((v) => !v)}
+          >
+            {checkin ? formatDateId(checkin) : "Pilih tanggal"}
+          </button>
+          {showDatePicker && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center p-4 md:items-center">
+              <button
+                type="button"
+                className="absolute inset-0 bg-black/20"
+                aria-label="Tutup"
+                onClick={() => setShowDatePicker(false)}
+              />
+              <div className="relative mt-16 w-full max-w-[380px] max-h-[calc(100vh-6rem)] overflow-auto overscroll-contain rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in md:mt-0">
+                <div className="font-bold mb-2 text-base">Tanggal Menginap</div>
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                  onClick={() => setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+                >
+                  Prev
+                </button>
+                <div className="text-xs font-semibold text-muted-foreground">
+                  {calMonth.toLocaleString("id-ID", { month: "long", year: "numeric" })}
+                </div>
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-2 py-1 text-xs font-semibold"
+                  onClick={() => setCalMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+                >
+                  Next
+                </button>
+              </div>
+
+              <div className="mt-3 grid grid-cols-7 gap-1 text-[10px]">
+                {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d) => (
+                  <div key={d} className="pb-1 text-center font-bold text-muted-foreground">
+                    {d}
+                  </div>
+                ))}
+                {(() => {
+                  const first = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1);
+                  const startDow = first.getDay();
+                  const daysInMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).getDate();
+
+                  const cells = [];
+                  for (let i = 0; i < startDow; i++) cells.push(null);
+                  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+                  while (cells.length < 42) cells.push(null);
+
+                  return cells.map((day, idx) => {
+                    if (!day) return <div key={idx} className="aspect-square rounded-md" />;
+
+                    const ymd = toYmdLocal(new Date(calMonth.getFullYear(), calMonth.getMonth(), day));
+                    const st = availabilityMap[ymd]?.status;
+                    const isPast = ymd < todayYmd;
+                    const isFull = st === "FULL_BOOKED";
+                    const isSelected = Boolean(checkin && checkout) && inRange(ymd, checkin, checkout);
+                    const isStart = ymd === checkin;
+                    const isEnd = ymd === checkout;
+
+                    const base =
+                      st === "FULL_BOOKED"
+                        ? "bg-destructive/10 text-destructive"
+                        : st === "PARTIAL_BOOKED"
+                          ? "bg-warning/15 text-warning"
+                          : st === "AVAILABLE"
+                            ? "bg-success/15 text-success"
+                            : "bg-secondary/40 text-muted-foreground";
+
+                    const selectedCls = isSelected ? "bg-primary text-primary-foreground" : base;
+                    const disabled = isPast || isFull;
+
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        disabled={disabled}
+                        onMouseEnter={() => setHoverDate(ymd)}
+                        onMouseLeave={() => setHoverDate("")}
+                        onClick={() => {
+                          setCalError("");
+                          if (disabled) return;
+
+                          if (!checkin || (checkin && checkout)) {
+                            setCheckin(ymd);
+                            setCheckout("");
+                            return;
+                          }
+                          if (ymd <= checkin) {
+                            setCheckin(ymd);
+                            setCheckout("");
+                            return;
+                          }
+                          const bad = rangeHasFullBooked(checkin, ymd);
+                          if (bad) {
+                            setCalError(`Tanggal ${bad} FULL BOOKED. Rentang tidak boleh melewati tanggal tersebut.`);
+                            return;
+                          }
+                          setCheckout(ymd);
+                        }}
+                        className={`aspect-square rounded-md border border-border px-0.5 font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${selectedCls} ${isStart || isEnd ? "ring-2 ring-primary/30" : ""}`}
+                        title={
+                          isFull
+                            ? "Penuh"
+                            : availabilityMap[ymd]
+                              ? `${availabilityMap[ymd].booked} dipesan, ${availabilityMap[ymd].available} tersedia`
+                              : ""
+                        }
+                      >
+                        {day}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+
+              {availability.isLoading && (
+                <div className="text-xs text-muted-foreground">Memuat ketersediaan...</div>
+              )}
+              {availability.isError && (
+                <div className="text-xs text-destructive">
+                  {(() => {
+                    const err = availability.error as any;
+                    if (typeof err?.message === "string") return String(err.message);
+                    return "Gagal memuat ketersediaan";
+                  })()}
+                </div>
+              )}
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded bg-success/30 ring-1 ring-success/40" /> Tersedia
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded bg-warning/30 ring-1 ring-warning/40" /> Terbatas
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded bg-destructive/25 ring-1 ring-destructive/30" /> Penuh
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-2.5 rounded bg-primary ring-1 ring-primary/40" /> Dipilih
+                </span>
+              </div>
+              {availabilityLabel && (
+                <div className="mt-2 rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
+                  {availabilityLabel}
+                </div>
+              )}
+              {calError && <div className="text-xs text-destructive mt-2">{calError}</div>}
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="w-full rounded-xl border border-border py-2 text-sm font-semibold"
+                  onClick={() => {
+                    setCalError("");
+                    setCheckin("");
+                    setCheckout("");
+                  }}
+                >
+                  Reset Tanggal
+                </button>
+                <button
+                  className="w-full rounded-xl bg-accent py-2 text-sm font-semibold text-accent-foreground mt-2"
+                  onClick={() => setShowDatePicker(false)}
+                >
+                  Selesai
+                </button>
+              </div>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="rounded-lg p-2 border-l border-border">
+          <div className="text-[10px] font-bold uppercase text-muted-foreground">Check-out</div>
+          <span className="text-sm font-semibold">{checkout ? formatDateId(checkout) : "Pilih tanggal"}</span>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-border p-3 relative" ref={guestRef}>
+        <div className="text-[10px] font-bold uppercase text-muted-foreground">Tamu</div>
+        <button
+          type="button"
+          className="text-sm font-semibold w-full text-left"
+          onClick={() => setShowGuestPopover((v) => !v)}
+        >
+          {adults} Dewasa, {children} Anak, {roomsCount} Kamar
+        </button>
+        {showGuestPopover && (
+          <div className="absolute left-0 right-0 top-12 z-30 mx-auto w-[calc(100vw-2rem)] max-w-[360px] max-h-[calc(100vh-8rem)] overflow-auto overscroll-contain rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in">
+            <div className="font-bold mb-2 text-base">Tamu dan Kamar</div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="flex items-center gap-2">Dewasa</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setAdults(Math.max(1, adults - 1))} className="rounded-full bg-secondary px-2">
+                  -
+                </button>
+                <span className="w-6 text-center">{adults}</span>
+                <button onClick={() => setAdults(adults + 1)} className="rounded-full bg-secondary px-2">
+                  +
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="flex items-center gap-2">Anak</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setChildren(Math.max(0, children - 1))}
+                  className="rounded-full bg-secondary px-2"
+                >
+                  -
+                </button>
+                <span className="w-6 text-center">{children}</span>
+                <button onClick={() => setChildren(children + 1)} className="rounded-full bg-secondary px-2">
+                  +
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between mb-4">
+              <span className="flex items-center gap-2">Kamar</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setRoomsCount(Math.max(1, roomsCount - 1))}
+                  className="rounded-full bg-secondary px-2"
+                >
+                  -
+                </button>
+                <span className="w-6 text-center">{roomsCount}</span>
+                <button onClick={() => setRoomsCount(roomsCount + 1)} className="rounded-full bg-secondary px-2">
+                  +
+                </button>
+              </div>
+            </div>
+            <button
+              className="w-full rounded-xl bg-accent py-2 text-sm font-semibold text-accent-foreground"
+              onClick={() => setShowGuestPopover(false)}
+            >
+              Selesai
+            </button>
+          </div>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => {
+          if (!checkin || !checkout) {
+            setCalError("Pilih tanggal menginap terlebih dahulu.");
+            setShowDatePicker(true);
+            return;
+          }
+          const next = `/booking/${room.slug}`;
+          if (!isLoggedIn()) {
+            navigate({ to: "/login", search: { redirectTo: next } as any });
+            return;
+          }
+          navigate({
+            to: "/booking/$id",
+            params: { id: room.slug },
+            state: { checkin, checkout, adults, children, roomsCount } as any,
+          });
+        }}
+        className="mt-5 block w-full rounded-xl bg-accent py-3.5 text-center text-sm font-semibold text-accent-foreground hover:opacity-90"
+      >
+        Booking Sekarang
+      </button>
+      <p className="mt-3 text-center text-xs text-muted-foreground">Belum ada biaya yang dikenakan</p>
+    </div>
+  );
   return (
     <div className="min-h-screen pb-28 md:pb-12">
       <TopBar />
@@ -291,6 +579,8 @@ function RoomDetailContent({ room }: { room: any }) {
 
           {/* Booking card */}
           <aside className="lg:sticky lg:top-20 lg:self-start hidden md:block">
+            <BookingCard />
+            {false && (
             <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-soft)] overflow-visible">
               <div className="flex items-end justify-between">
                 <div>
@@ -315,8 +605,15 @@ function RoomDetailContent({ room }: { room: any }) {
                     {checkin ? formatDateId(checkin) : "Pilih tanggal"}
                   </button>
                   {showDatePicker && (
-                    <div className="absolute left-1/2 -translate-x-1/2 top-12 z-30 w-[320px] rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in">
-                      <div className="font-bold mb-2 text-base">Tanggal Menginap</div>
+                    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 md:items-center">
+                      <button
+                        type="button"
+                        className="absolute inset-0 bg-black/20"
+                        aria-label="Tutup"
+                        onClick={() => setShowDatePicker(false)}
+                      />
+                      <div className="relative mt-16 w-full max-w-[380px] max-h-[calc(100vh-6rem)] overflow-auto overscroll-contain rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in md:mt-0">
+                        <div className="font-bold mb-2 text-base">Tanggal Menginap</div>
                       <div className="flex items-center justify-between">
                         <button
                           type="button"
@@ -447,13 +744,15 @@ function RoomDetailContent({ room }: { room: any }) {
                       {availability.isLoading && (
                         <div className="text-xs text-muted-foreground">Memuat ketersediaan...</div>
                       )}
-	                      {availability.isError && (
-	                        <div className="text-xs text-destructive">
-	                          {availability.error instanceof Error
-	                            ? availability.error.message
-	                            : "Gagal memuat ketersediaan"}
-	                        </div>
-	                      )}
+		                      {availability.isError && (
+		                        <div className="text-xs text-destructive">
+                          {(() => {
+                            const err = availability.error as any;
+                            if (typeof err?.message === "string") return String(err.message);
+                            return "Gagal memuat ketersediaan";
+                          })()}
+		                        </div>
+		                      )}
 		                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
 		                        <span className="inline-flex items-center gap-1">
 		                          <span className="h-2.5 w-2.5 rounded bg-success/30 ring-1 ring-success/40" />{" "}
@@ -478,10 +777,10 @@ function RoomDetailContent({ room }: { room: any }) {
                             </div>
                           )}
 		                      {calError && <div className="text-xs text-destructive mt-2">{calError}</div>}
-	                      <div className="mt-3 grid grid-cols-2 gap-2">
-	                        <button
-	                          type="button"
-	                          className="w-full rounded-xl border border-border py-2 text-sm font-semibold"
+		                      <div className="mt-3 grid grid-cols-2 gap-2">
+		                        <button
+		                          type="button"
+		                          className="w-full rounded-xl border border-border py-2 text-sm font-semibold"
 	                          onClick={() => {
 	                            setCalError("");
 	                            setCheckin("");
@@ -495,10 +794,11 @@ function RoomDetailContent({ room }: { room: any }) {
 	                        onClick={() => setShowDatePicker(false)}
 	                      >
 	                        Selesai
-	                      </button>
-	                      </div>
-	                    </div>
-	                  )}
+		                        </button>
+		                      </div>
+		                      </div>
+		                    </div>
+		                  )}
 	                </div>
                 <div className="rounded-lg p-2 border-l border-border">
                   <div className="text-[10px] font-bold uppercase text-muted-foreground">
@@ -520,7 +820,7 @@ function RoomDetailContent({ room }: { room: any }) {
                   {adults} Dewasa, {children} Anak, {roomsCount} Kamar
                 </button>
                 {showGuestPopover && (
-                  <div className="absolute left-1/2 -translate-x-1/2 top-12 z-30 w-[320px] rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in">
+                  <div className="absolute left-0 right-0 top-12 z-30 mx-auto w-[calc(100vw-2rem)] max-w-[360px] max-h-[calc(100vh-8rem)] overflow-auto overscroll-contain rounded-2xl bg-white p-4 shadow-xl border border-border animate-fade-in">
                     <div className="font-bold mb-2 text-base">Tamu dan Kamar</div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="flex items-center gap-2">Dewasa</span>
@@ -611,9 +911,43 @@ function RoomDetailContent({ room }: { room: any }) {
                 Belum ada biaya yang dikenakan
               </p>
             </div>
+            )}
           </aside>
         </div>
       </div>
+
+      {/* Mobile booking sheet (behavior sama dengan desktop, hanya beda layout) */}
+      {showMobileBooking && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label="Tutup"
+            onClick={() => {
+              setShowMobileBooking(false);
+              setShowDatePicker(false);
+              setShowGuestPopover(false);
+            }}
+          />
+          <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-auto rounded-t-3xl bg-background p-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3">
+              <div className="text-sm font-bold">Booking</div>
+              <button
+                type="button"
+                className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold"
+                onClick={() => {
+                  setShowMobileBooking(false);
+                  setShowDatePicker(false);
+                  setShowGuestPopover(false);
+                }}
+              >
+                Tutup
+              </button>
+            </div>
+            <BookingCard />
+          </div>
+        </div>
+      )}
 
       {/* Sticky mobile CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card px-4 py-3 md:hidden">
@@ -625,7 +959,12 @@ function RoomDetailContent({ room }: { room: any }) {
           <button
             type="button"
             onClick={() => {
+              if (!showMobileBooking) {
+                setShowMobileBooking(true);
+                return;
+              }
               if (!checkin || !checkout) {
+                setCalError("Pilih tanggal menginap terlebih dahulu.");
                 setShowDatePicker(true);
                 return;
               }

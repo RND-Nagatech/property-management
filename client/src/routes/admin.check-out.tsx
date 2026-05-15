@@ -308,6 +308,16 @@ function CheckOut() {
                     <span className="text-muted-foreground">Jenis</span>
                     <span className="font-semibold">{(deposit.data as any).type || "CASH"}</span>
                   </div>
+                  {(deposit.data as any).type && (deposit.data as any).type !== "CASH" && (deposit.data as any).type !== "NONE" && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {(deposit.data as any).identityName && (
+                        <div>Nama: {(deposit.data as any).identityName}</div>
+                      )}
+                      {(deposit.data as any).identityNumber && (
+                        <div>NIK: {(deposit.data as any).identityNumber}</div>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-1 flex items-center justify-between">
                     <span className="text-muted-foreground">Nominal</span>
                     <span className="font-semibold">

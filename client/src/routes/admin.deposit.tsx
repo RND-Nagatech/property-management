@@ -126,6 +126,22 @@ function Deposit() {
                     if (t === "CASH") return "Uang tunai";
                     if (t === "PASSPORT") return "Paspor";
                     if (t === "NONE") return "-";
+                    if (t === "KTP" || t === "SIM" || t === "PASSPORT") {
+                      return (
+                        <span>
+                          {t}
+                          {d.identityName || d.identityNumber ? (
+                            <>
+                              <br />
+                              <span className="text-xs text-muted-foreground">
+                                {d.identityName && <span>Nama: {d.identityName}<br /></span>}
+                                {d.identityNumber && <span>NIK: {d.identityNumber}</span>}
+                              </span>
+                            </>
+                          ) : null}
+                        </span>
+                      );
+                    }
                     return t;
                   })()}
                 </td>

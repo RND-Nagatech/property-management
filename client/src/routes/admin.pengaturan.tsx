@@ -285,26 +285,7 @@ function Pengaturan() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
-          <h3 className="text-base font-bold">Template Invoice</h3>
-          <textarea
-            rows={6}
-            className="mt-3 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-xs outline-none focus:border-accent"
-            value={form.invoiceTemplate}
-            onChange={(e) => setForm({ ...form, invoiceTemplate: e.target.value })}
-          />
-        </div>
-        <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
-          <h3 className="text-base font-bold">Template WhatsApp</h3>
-          <textarea
-            rows={6}
-            className="mt-3 w-full rounded-xl border border-input bg-background px-4 py-3 font-mono text-xs outline-none focus:border-accent"
-            value={form.whatsappTemplate}
-            onChange={(e) => setForm({ ...form, whatsappTemplate: e.target.value })}
-          />
-        </div>
-      </div>
+      {/* Bagian Template Invoice & WhatsApp disembunyikan */}
 
       <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
         <div className="flex items-start justify-between gap-4">

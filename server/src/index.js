@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { env } from "./env.js";
 import { connectDb } from "./db.js";
 import bcrypt from "bcryptjs";
+import { autoCancelExpiredBookings } from "./jobs/auto-cancel-bookings.js";
 import { AdminUser } from "./models/AdminUser.js";
 import { roomsRouter } from "./routes/rooms.js";
 import { roomTypesRouter } from "./routes/room-types.js";
@@ -32,6 +33,10 @@ import { testimonialsRouter } from "./routes/testimonials.js";
 import { adminTestimonialsRouter } from "./routes/admin-testimonials.js";
 
 async function main() {
+  // Start auto-cancel job (runs every 1 minute)
+  setInterval(() => {
+    autoCancelExpiredBookings().catch((e) => console.error("[auto-cancel] error:", e));
+  }, 60 * 1000);
   await connectDb(env.MONGODB_URI);
 
   // Ensure there's always at least one admin user for first run.

@@ -41,6 +41,7 @@ function Pengaturan() {
     whatsappTemplate: "",
     invoiceNote: "",
     logoDataUrl: "",
+    bookingExpireMinutes: 30,
   });
 
   const [waStatus, setWaStatus] = useState<{ status: string; qr?: string; me?: string; error?: string } | null>(null);
@@ -155,6 +156,7 @@ function Pengaturan() {
         upsert.mutateAsync({ key: "whatsappTemplate", value: form.whatsappTemplate }),
         upsert.mutateAsync({ key: "invoiceNote", value: form.invoiceNote }),
         upsert.mutateAsync({ key: "logoDataUrl", value: form.logoDataUrl }),
+        upsert.mutateAsync({ key: "bookingExpireMinutes", value: form.bookingExpireMinutes }),
       ]);
       toast.success("Pengaturan disimpan");
     } catch (e) {
@@ -288,6 +290,17 @@ function Pengaturan() {
       {/* Bagian Template Invoice & WhatsApp disembunyikan */}
 
       <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
+        <div className="mb-6">
+          <label className="block mb-2 text-xs font-semibold text-muted-foreground">Booking Expired (menit)</label>
+          <input
+            type="number"
+            min={1}
+            className="w-full rounded-xl border border-input bg-background px-4 py-2 text-sm outline-none focus:border-accent"
+            value={form.bookingExpireMinutes}
+            onChange={e => setForm({ ...form, bookingExpireMinutes: Number(e.target.value) })}
+          />
+          <div className="mt-1 text-xs text-muted-foreground">Booking yang belum dibayar akan otomatis dibatalkan setelah waktu ini (dalam menit).</div>
+        </div>
         <div className="flex items-start justify-between gap-4">
           <div>
             <h3 className="text-base font-bold">Koneksi WhatsApp</h3>

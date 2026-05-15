@@ -2,6 +2,8 @@ import React from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { TopBar, MobileNav } from "@/components/customer/Nav";
 import { formatRupiah } from "@/lib/currency";
+import { useSettings } from "@/hooks/useSettings";
+import { useCountdown } from "@/hooks/useCountdown";
 import { useQuery } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/services/api";
@@ -36,6 +38,169 @@ function statusClass(label: string) {
 }
 
 const tabs = ["Semua", "Aktif", "Selesai", "Dibatalkan"];
+
+function BookingCard({
+  b,
+  expireMinutes,
+  cancelPending,
+  onCancel,
+}: {
+  b: any;
+  expireMinutes: number;
+  cancelPending: boolean;
+  onCancel: (id: string) => void;
+}) {
+  const roomType = b.roomTypeId && typeof b.roomTypeId === "object" ? b.roomTypeId : null;
+  const st = labelStatus(b);
+  const bs = String(b.bookingStatus ?? "");
+  const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${b._id}`;
+  const canCancel = bs === "pending_payment" || bs === "waiting_confirmation" || bs === "confirmed";
+  const paymentStatus = String(b.paymentStatus ?? "");
+  const canAccessProof = paymentStatus === "paid";
+
+  const countdownTarget =
+    b.createdAt && expireMinutes > 0
+      ? new Date(b.createdAt).getTime() + expireMinutes * 60 * 1000
+      : null;
+  const [countdown, countdownSec] = useCountdown(bs === "pending_payment" ? countdownTarget : null);
+
+  return (
+    <div className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
+      <div className="flex gap-4">
+        {roomType?.gambarThumbnail ? (
+          <img
+            src={resolveMediaUrl(roomType.gambarThumbnail) || roomType.gambarThumbnail}
+            alt=""
+            className="h-20 w-24 shrink-0 rounded-xl object-cover sm:h-24 sm:w-28"
+          />
+        ) : (
+          <div className="h-20 w-24 shrink-0 rounded-xl bg-secondary sm:h-24 sm:w-28" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-xs text-muted-foreground">{b.kodeBooking}</div>
+              <div className="mt-0.5 truncate text-base font-bold">{roomType?.namaTipe ?? "-"}</div>
+              <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <Calendar className="h-3 w-3" />
+                {String(b.checkIn).slice(0, 10)} → {String(b.checkOut).slice(0, 10)}
+              </div>
+            </div>
+            <span
+              className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(st)}`}
+            >
+              {st}
+              {bs === "pending_payment" && countdownSec > 0 && (
+                <span className="ml-2 font-mono text-xs text-warning">{countdown}</span>
+              )}
+              {bs === "pending_payment" && countdownSec === 0 && (
+                <span className="ml-2 font-mono text-xs text-destructive">Expired</span>
+              )}
+            </span>
+          </div>
+          <div className="mt-3 flex items-end justify-between">
+            <div className="text-base font-bold">{formatRupiah(b.total ?? 0)}</div>
+            <div className="flex gap-1.5">
+              {bs === "pending_payment" && (
+                <Link
+                  to="/pembayaran/$id"
+                  params={{ id: b._id }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
+                >
+                  Lanjut Bayar <ChevronRight className="h-3 w-3" />
+                </Link>
+              )}
+              {canCancel && (
+                <button
+                  type="button"
+                  disabled={cancelPending}
+                  onClick={() => {
+                    const paid = paymentStatus === "paid";
+                    toast("Batalkan booking ini?", {
+                      description: paid
+                        ? "Pembayaran sudah diverifikasi. Jika pesanan dibatalkan, dana tidak dapat dikembalikan."
+                        : "Booking yang dibatalkan tidak bisa dipulihkan.",
+                      action: {
+                        label: "Batalkan",
+                        onClick: () => onCancel(b._id),
+                      },
+                      cancel: { label: "Tutup" } as any,
+                    });
+                  }}
+                  className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold"
+                  title="Batalkan booking"
+                >
+                  <X className="h-3 w-3" /> Batal
+                </button>
+              )}
+              {bs === "checked_out" && (
+                <Link
+                  to="/testimoni/$id"
+                  params={{ id: b._id }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                >
+                  Beri Testimoni <ChevronRight className="h-3 w-3" />
+                </Link>
+              )}
+              {canAccessProof ? (
+                <Link
+                  to="/booking-berhasil/$id"
+                  params={{ id: b._id }}
+                  className="rounded-lg border border-border p-2"
+                  title="Lihat QR Booking"
+                >
+                  <QrCode className="h-4 w-4" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() =>
+                    toast.error(
+                      paymentStatus === "waiting_confirmation"
+                        ? "Pembayaran masih dalam proses verifikasi."
+                        : "Selesaikan pembayaran terlebih dahulu."
+                    )
+                  }
+                  className="rounded-lg border border-border p-2 opacity-60"
+                  title="Belum bisa diakses"
+                >
+                  <QrCode className="h-4 w-4" />
+                </button>
+              )}
+              <a
+                href={canAccessProof ? invoiceUrl : undefined}
+                target={canAccessProof ? "_blank" : undefined}
+                rel={canAccessProof ? "noreferrer" : undefined}
+                onClick={(e) => {
+                  if (canAccessProof) return;
+                  e.preventDefault();
+                  toast.error(
+                    paymentStatus === "waiting_confirmation"
+                      ? "Pembayaran masih dalam proses verifikasi."
+                      : "Selesaikan pembayaran terlebih dahulu."
+                  );
+                }}
+                className={`rounded-lg border border-border p-2 inline-flex ${canAccessProof ? "" : "opacity-60"}`}
+                title={canAccessProof ? "Download Invoice" : "Belum bisa diakses"}
+              >
+                <FileText className="h-4 w-4" />
+              </a>
+              {roomType?.slug && (
+                <Link
+                  to="/kamar/$id"
+                  params={{ id: roomType.slug }}
+                  className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
+                >
+                  Detail <ChevronRight className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MyBookings() {
   const navigate = useNavigate();
@@ -74,6 +239,12 @@ function MyBookings() {
   }, [navigate]);
   if (!isLoggedIn()) return null;
 
+  const settings = useSettings();
+  const expireMinutes = React.useMemo(() => {
+    const s = settings.data?.find((x) => x.key === "bookingExpireMinutes");
+    return Number(s?.value ?? 30);
+  }, [settings.data]);
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-8">
       <TopBar />
@@ -109,148 +280,15 @@ function MyBookings() {
               Tidak ada booking pada kategori ini.
             </div>
           )}
-          {filteredBookings.map((b) => {
-            const roomType = b.roomTypeId && typeof b.roomTypeId === "object" ? b.roomTypeId : null;
-            const st = labelStatus(b);
-            const bs = String(b.bookingStatus ?? "");
-            const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${b._id}`;
-            const canCancel =
-              bs === "pending_payment" || bs === "waiting_confirmation" || bs === "confirmed";
-            const paymentStatus = String(b.paymentStatus ?? "");
-            const canAccessProof = paymentStatus === "paid";
-            return (
-              <div key={b._id} className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)]">
-                <div className="flex gap-4">
-                  {roomType?.gambarThumbnail ? (
-                    <img
-                      src={resolveMediaUrl(roomType.gambarThumbnail) || roomType.gambarThumbnail}
-                      alt=""
-                      className="h-20 w-24 shrink-0 rounded-xl object-cover sm:h-24 sm:w-28"
-                    />
-                  ) : (
-                    <div className="h-20 w-24 shrink-0 rounded-xl bg-secondary sm:h-24 sm:w-28" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-xs text-muted-foreground">{b.kodeBooking}</div>
-                        <div className="mt-0.5 truncate text-base font-bold">
-                          {roomType?.namaTipe ?? "-"}
-                        </div>
-                        <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
-                          <Calendar className="h-3 w-3" />
-                          {String(b.checkIn).slice(0, 10)} → {String(b.checkOut).slice(0, 10)}
-                        </div>
-                      </div>
-                      <span
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(st)}`}
-                      >
-                        {st}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex items-end justify-between">
-                      <div className="text-base font-bold">{formatRupiah(b.total ?? 0)}</div>
-                      <div className="flex gap-1.5">
-                        {bs === "pending_payment" && (
-                          <Link
-                            to="/pembayaran/$id"
-                            params={{ id: b._id }}
-                            className="inline-flex items-center gap-1 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-accent-foreground"
-                          >
-                            Lanjut Bayar <ChevronRight className="h-3 w-3" />
-                          </Link>
-                        )}
-                        {canCancel && (
-                          <button
-                            type="button"
-                            disabled={cancelBooking.isPending}
-                            onClick={() => {
-                              const paid = paymentStatus === "paid";
-                              toast("Batalkan booking ini?", {
-                                description: paid
-                                  ? "Pembayaran sudah diverifikasi. Jika pesanan dibatalkan, dana tidak dapat dikembalikan."
-                                  : "Booking yang dibatalkan tidak bisa dipulihkan.",
-                                action: {
-                                  label: "Batalkan",
-                                  onClick: () => cancelBooking.mutate(b._id),
-                                },
-                                cancel: { label: "Tutup" } as any,
-                              });
-                            }}
-                            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-semibold"
-                            title="Batalkan booking"
-                          >
-                            <X className="h-3 w-3" /> Batal
-                          </button>
-                        )}
-                        {bs === "checked_out" && (
-                          <Link
-                            to="/testimoni/$id"
-                            params={{ id: b._id }}
-                            className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
-                          >
-                            Beri Testimoni <ChevronRight className="h-3 w-3" />
-                          </Link>
-                        )}
-                        {canAccessProof ? (
-                          <Link
-                            to="/booking-berhasil/$id"
-                            params={{ id: b._id }}
-                            className="rounded-lg border border-border p-2"
-                            title="Lihat QR Booking"
-                          >
-                            <QrCode className="h-4 w-4" />
-                          </Link>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              toast.error(
-                                paymentStatus === "waiting_confirmation"
-                                  ? "Pembayaran masih dalam proses verifikasi."
-                                  : "Selesaikan pembayaran terlebih dahulu."
-                              )
-                            }
-                            className="rounded-lg border border-border p-2 opacity-60"
-                            title="Belum bisa diakses"
-                          >
-                            <QrCode className="h-4 w-4" />
-                          </button>
-                        )}
-                        <a
-                          href={canAccessProof ? invoiceUrl : undefined}
-                          target={canAccessProof ? "_blank" : undefined}
-                          rel={canAccessProof ? "noreferrer" : undefined}
-                          onClick={(e) => {
-                            if (canAccessProof) return;
-                            e.preventDefault();
-                            toast.error(
-                              paymentStatus === "waiting_confirmation"
-                                ? "Pembayaran masih dalam proses verifikasi."
-                                : "Selesaikan pembayaran terlebih dahulu."
-                            );
-                          }}
-                          className={`rounded-lg border border-border p-2 inline-flex ${canAccessProof ? "" : "opacity-60"}`}
-                          title={canAccessProof ? "Download Invoice" : "Belum bisa diakses"}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </a>
-                        {roomType?.slug && (
-                          <Link
-                            to="/kamar/$id"
-                            params={{ id: roomType.slug }}
-                            className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"
-                          >
-                            Detail <ChevronRight className="h-3 w-3" />
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          {filteredBookings.map((b) => (
+            <BookingCard
+              key={b._id}
+              b={b}
+              expireMinutes={expireMinutes}
+              cancelPending={cancelBooking.isPending}
+              onCancel={(id) => cancelBooking.mutate(id)}
+            />
+          ))}
         </div>
       </div>
       <MobileNav />

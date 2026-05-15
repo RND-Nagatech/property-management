@@ -130,7 +130,7 @@ function AdminLogin() {
               <input
                 type="text"
                 name="username"
-                placeholder="rnd"
+                placeholder="Silakan isi username admin"
                 ref={usernameRef}
                 defaultValue={username}
                 onChange={(e) => setUsername(e.target.value)}

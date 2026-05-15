@@ -74,7 +74,7 @@ function Login() {
           <div>
             <h2 className="text-3xl font-bold">Selamat datang kembali</h2>
             <p className="mt-2 max-w-sm text-white/80">
-              Lanjutkan perjalanan Anda dan temukan tempat menginap berikutnya.
+              Lanjutkan perjalanan Anda dan temukan tempat menginap yang nyaman.
             </p>
           </div>
         </div>

@@ -125,6 +125,7 @@ function Pengaturan() {
       whatsappTemplate: (byKey.get("whatsappTemplate") as string) ?? prev.whatsappTemplate,
       invoiceNote: (byKey.get("invoiceNote") as string) ?? prev.invoiceNote,
       logoDataUrl: (byKey.get("logoDataUrl") as string) ?? prev.logoDataUrl,
+      bookingExpireMinutes: Number(byKey.get("bookingExpireMinutes")) || prev.bookingExpireMinutes,
     }));
   }, [byKey, settings.data]);
 
@@ -287,10 +288,9 @@ function Pengaturan() {
         </div>
       </div>
 
-      {/* Bagian Template Invoice & WhatsApp disembunyikan */}
-
-      <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
-        <div className="mb-6">
+      {/* Booking Expired dan Catatan Invoice */}
+      <div className="grid gap-6 lg:grid-cols-2 mt-6">
+        <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
           <label className="block mb-2 text-xs font-semibold text-muted-foreground">Booking Expired (menit)</label>
           <input
             type="number"
@@ -301,7 +301,33 @@ function Pengaturan() {
           />
           <div className="mt-1 text-xs text-muted-foreground">Booking yang belum dibayar akan otomatis dibatalkan setelah waktu ini (dalam menit).</div>
         </div>
-        <div className="flex items-start justify-between gap-4">
+        <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
+          <h3 className="text-base font-bold">Catatan Invoice</h3>
+          <textarea
+            rows={4}
+            className="mt-3 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:border-accent"
+            value={form.invoiceNote}
+            onChange={(e) => setForm({ ...form, invoiceNote: e.target.value })}
+            placeholder="Catatan tambahan yang akan tampil di invoice..."
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 mt-6">
+        <button className="rounded-xl border border-border px-5 py-2.5 text-sm font-medium">
+          Batal
+        </button>
+        <button
+          onClick={onSave}
+          className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground"
+        >
+          Simpan Perubahan
+        </button>
+      </div>
+
+      {/* Section WhatsApp dipisah di bawah */}
+      <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)] mt-8">
+        <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <h3 className="text-base font-bold">Koneksi WhatsApp</h3>
             <div className="mt-1 text-xs text-muted-foreground">
@@ -338,8 +364,7 @@ function Pengaturan() {
             )}
           </div>
         </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-[280px_1fr] items-start">
+        <div className="grid gap-4 md:grid-cols-[280px_1fr] items-start">
           <div className="rounded-2xl border border-border bg-secondary/30 p-4">
             <div className="text-xs font-semibold text-muted-foreground">Status</div>
             <div className="mt-1 text-sm font-bold">
@@ -365,29 +390,6 @@ function Pengaturan() {
             </ol>
           </div>
         </div>
-      </div>
-
-      <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-card)]">
-        <h3 className="text-base font-bold">Catatan Invoice</h3>
-        <textarea
-          rows={4}
-          className="mt-3 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:border-accent"
-          value={form.invoiceNote}
-          onChange={(e) => setForm({ ...form, invoiceNote: e.target.value })}
-          placeholder="Catatan tambahan yang akan tampil di invoice..."
-        />
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <button className="rounded-xl border border-border px-5 py-2.5 text-sm font-medium">
-          Batal
-        </button>
-        <button
-          onClick={onSave}
-          className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-accent-foreground"
-        >
-          Simpan Perubahan
-        </button>
       </div>
     </div>
   );

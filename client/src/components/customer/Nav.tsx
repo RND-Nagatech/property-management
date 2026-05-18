@@ -55,7 +55,7 @@ export function TopBar() {
   const propertyName = String(byKey.get("propertyName") ?? "").trim() || "Properti";
   const logo = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? "").trim());
   const initial = propertyName.trim().slice(0, 1).toUpperCase() || "P";
-  const path = window.location.pathname;
+  const path = useRouterState({ select: (s) => s.location.pathname });
   const navItems = [
     { to: "/", label: "Beranda", icon: Home },
     { to: "/booking-saya", label: "Booking Saya", icon: Calendar },

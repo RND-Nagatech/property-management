@@ -58,6 +58,22 @@ function paymentClass(label: string) {
   return "bg-secondary text-muted-foreground";
 }
 
+function formatBookingItemsLabel(b: any) {
+  const items = Array.isArray(b?.bookingItems) ? b.bookingItems : [];
+  if (items.length) {
+    const parts = items.map((it: any) => {
+      const rt = it?.roomTypeId && typeof it.roomTypeId === "object" ? it.roomTypeId : null;
+      const name = String(it?.roomTypeName ?? rt?.namaTipe ?? "-");
+      const q = Math.max(1, Number(it?.quantity ?? 1));
+      return `${name} x ${q}`;
+    });
+    const first = parts[0] ?? "-";
+    if (parts.length <= 1) return first;
+    return `${first} + ${parts.length - 1} tipe`;
+  }
+  return (b.roomTypeId as any)?.namaTipe ?? "-";
+}
+
 function BookingPage() {
   const [activeTab, setActiveTab] = useState(1); // default: Aktif
   const tab = tabs[activeTab];
@@ -402,11 +418,11 @@ function BookingPage() {
 	              </tr>
 	            </thead>
 	            <tbody className="divide-y divide-border">
-	              {visibleBookings.map((b) => (
-	                <tr key={b._id} className="hover:bg-secondary/40">
+		              {visibleBookings.map((b) => (
+		                <tr key={b._id} className="hover:bg-secondary/40">
                   <td className="py-3.5 font-mono text-xs font-bold">{b.kodeBooking}</td>
                   <td className="py-3.5 font-medium">{(b.tamuId as any)?.nama ?? "-"}</td>
-                  <td className="py-3.5 text-muted-foreground">{(b.roomTypeId as any)?.namaTipe ?? "-"}</td>
+	                  <td className="py-3.5 text-muted-foreground">{formatBookingItemsLabel(b)}</td>
 	                  <td className="py-3.5 text-muted-foreground">
 	                    {String(b.checkIn).slice(0, 10)} → {String(b.checkOut).slice(0, 10)}
 	                  </td>

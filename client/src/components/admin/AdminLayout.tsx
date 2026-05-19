@@ -63,6 +63,7 @@ const groups: { title?: string; items: Item[] }[] = [
     title: "Laporan",
     items: [
       { to: "/admin/laporan-keuangan", label: "Laporan Keuangan", icon: FileBarChart2 },
+      { to: "/admin/laporan-pembayaran", label: "Laporan Pembayaran", icon: CreditCard },
       { to: "/admin/laporan-booking", label: "Laporan Booking", icon: FileText },
     ],
   },

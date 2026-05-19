@@ -39,6 +39,8 @@ function statusClass(label: string) {
 
 const tabs = ["Semua", "Aktif", "Selesai", "Dibatalkan"];
 
+// normalizeBookingItems moved above BookingCard
+
 function BookingCard({
   b,
   expireMinutes,
@@ -50,7 +52,8 @@ function BookingCard({
   cancelPending: boolean;
   onCancel: (id: string) => void;
 }) {
-  const roomType = b.roomTypeId && typeof b.roomTypeId === "object" ? b.roomTypeId : null;
+  const items = normalizeBookingItems(b);
+  const first = items[0] ?? { name: "-", quantity: 1, thumbnail: "", slug: "" };
   const st = labelStatus(b);
   const bs = String(b.bookingStatus ?? "");
   const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${b._id}`;
@@ -67,9 +70,9 @@ function BookingCard({
   return (
     <div className="rounded-2xl bg-card p-4 shadow-[var(--shadow-card)] max-w-full">
       <div className="flex gap-4 max-w-full">
-        {roomType?.gambarThumbnail ? (
+        {first.thumbnail ? (
           <img
-            src={resolveMediaUrl(roomType.gambarThumbnail) || roomType.gambarThumbnail}
+            src={resolveMediaUrl(first.thumbnail) || first.thumbnail}
             alt=""
             className="h-20 w-24 shrink-0 rounded-xl object-cover sm:h-24 sm:w-28"
           />
@@ -80,7 +83,19 @@ function BookingCard({
           <div className="flex flex-wrap items-start justify-between gap-2 min-w-0 max-w-full">
             <div className="min-w-0">
               <div className="text-xs text-muted-foreground">{b.kodeBooking}</div>
-              <div className="mt-0.5 truncate text-base font-bold">{roomType?.namaTipe ?? "-"}</div>
+              <div className="mt-0.5 truncate text-base font-bold">
+                {items.length <= 1
+                  ? `${first.name} x ${first.quantity}`
+                  : `${first.name} x ${first.quantity} + ${items.length - 1} tipe`}
+              </div>
+              {items.length > 1 && (
+                <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                  {items
+                    .slice(1)
+                    .map((it: any) => `${it.name} x ${it.quantity}`)
+                    .join(", ")}
+                </div>
+              )}
               <div className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Calendar className="h-3 w-3" />
                 {String(b.checkIn).slice(0, 10)} → {String(b.checkOut).slice(0, 10)}
@@ -186,10 +201,10 @@ function BookingCard({
               >
                 <FileText className="h-4 w-4" />
               </a>
-              {roomType?.slug && (
+              {first.slug && (
                 <Link
                   to="/kamar/$id"
-                  params={{ id: roomType.slug }}
+                  params={{ id: first.slug }}
                   className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground max-w-full"
                 >
                   <span className="truncate">Detail</span> <ChevronRight className="h-3 w-3" />
@@ -295,4 +310,27 @@ function MyBookings() {
       <MobileNav />
     </div>
   );
+}
+
+function normalizeBookingItems(b: any) {
+  const items = Array.isArray(b?.bookingItems) ? b.bookingItems : [];
+  if (items.length) {
+    return items.map((it: any) => {
+      const rt = it?.roomTypeId && typeof it.roomTypeId === "object" ? it.roomTypeId : null;
+      const name = String(it?.roomTypeName ?? rt?.namaTipe ?? "-");
+      const quantity = Math.max(1, Number(it?.quantity ?? 1));
+      const thumbnail = rt?.gambarThumbnail ? String(rt.gambarThumbnail) : "";
+      const slug = rt?.slug ? String(rt.slug) : "";
+      return { name, quantity, thumbnail, slug };
+    });
+  }
+  const rt = b?.roomTypeId && typeof b.roomTypeId === "object" ? b.roomTypeId : null;
+  return [
+    {
+      name: String(rt?.namaTipe ?? "-"),
+      quantity: 1,
+      thumbnail: rt?.gambarThumbnail ? String(rt.gambarThumbnail) : "",
+      slug: rt?.slug ? String(rt.slug) : "",
+    },
+  ];
 }

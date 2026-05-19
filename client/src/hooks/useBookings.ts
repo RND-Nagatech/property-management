@@ -13,6 +13,15 @@ export type Booking = {
   guestSnapshot?: any;
   roomTypeId: RoomType | string;
   roomId?: Room | string | null;
+  bookingItems?: Array<{
+    roomTypeId: RoomType | string;
+    roomTypeName?: string;
+    quantity: number;
+    pricePerNight?: number;
+    totalNights?: number;
+    subtotal?: number;
+    assignedRoomIds?: Array<Room | string>;
+  }>;
   checkIn: string;
   checkOut: string;
   dewasa: number;
@@ -123,6 +132,7 @@ export function useCheckInBooking() {
       apiRequest<Booking>(`/admin/bookings/${encodeURIComponent(id)}/check-in`, { method: "POST" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["bookings", "byCode"] });
       qc.invalidateQueries({ queryKey: ["rooms"] });
       qc.invalidateQueries({ queryKey: ["reports"] });
     },
@@ -139,6 +149,7 @@ export function useCheckOutBooking() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["bookings", "byCode"] });
       qc.invalidateQueries({ queryKey: ["rooms"] });
       qc.invalidateQueries({ queryKey: ["deposits"] });
       qc.invalidateQueries({ queryKey: ["reports"] });

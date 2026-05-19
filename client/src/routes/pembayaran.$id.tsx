@@ -97,7 +97,26 @@ function Payment() {
   }
 
   const data = booking.data;
-  const roomType = data?.roomTypeId;
+  const itemsRaw = Array.isArray(data?.bookingItems) ? data.bookingItems : [];
+  const items = itemsRaw.length
+    ? itemsRaw.map((it: any) => {
+        const rt = it?.roomTypeId && typeof it.roomTypeId === "object" ? it.roomTypeId : null;
+        const name = String(it?.roomTypeName ?? rt?.namaTipe ?? "-");
+        const q = Math.max(1, Number(it?.quantity ?? 1));
+        const thumb = rt?.gambarThumbnail ? String(rt.gambarThumbnail) : "";
+        const slug = rt?.slug ? String(rt.slug) : "";
+        return { name, q, thumb, slug };
+      })
+    : [
+        {
+          name: String(data?.roomTypeId?.namaTipe ?? "-"),
+          q: 1,
+          thumb: String(data?.roomTypeId?.gambarThumbnail ?? ""),
+          slug: String(data?.roomTypeId?.slug ?? ""),
+        },
+      ];
+  const firstItem = items[0];
+  const firstSlug = String(firstItem?.slug ?? "");
   const total = Number(data?.total ?? 0);
 
   return (
@@ -106,7 +125,7 @@ function Payment() {
       <div className="mx-auto max-w-5xl px-4 py-5 md:py-6">
         <Link
           to="/booking/$id"
-          params={{ id: roomType?.slug ?? "" }}
+          params={{ id: firstSlug }}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" /> Kembali
@@ -229,24 +248,36 @@ function Payment() {
           </div>
 
           <aside className="lg:sticky lg:top-20 lg:self-start">
-            <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-soft)]">
-              <h3 className="text-sm font-bold">Ringkasan Invoice</h3>
-              <div className="mt-3 flex gap-3">
-                {roomType?.gambarThumbnail ? (
-                  <img
-                    src={resolveMediaUrl(roomType.gambarThumbnail) || heroImg}
-                    alt=""
-                    className="h-16 w-20 rounded-lg object-cover"
-                  />
-                ) : (
-                  <div className="h-16 w-20 rounded-lg bg-secondary" />
-                )}
-                <div>
-                  <div className="text-sm font-bold">{roomType?.namaTipe ?? "-"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {String(data?.checkIn ?? "").slice(0, 10)} → {String(data?.checkOut ?? "").slice(0, 10)}
+	            <div className="rounded-2xl bg-card p-6 shadow-[var(--shadow-soft)]">
+	              <h3 className="text-sm font-bold">Ringkasan Invoice</h3>
+	              <div className="mt-3 flex gap-3">
+	                {firstItem?.thumb ? (
+	                  <img
+	                    src={resolveMediaUrl(firstItem.thumb) || heroImg}
+	                    alt=""
+	                    className="h-16 w-20 rounded-lg object-cover"
+	                  />
+	                ) : (
+	                  <div className="h-16 w-20 rounded-lg bg-secondary" />
+	                )}
+	                <div>
+	                  <div className="text-sm font-bold">
+                      {items.length <= 1
+                        ? `${firstItem?.name ?? "-"} x ${firstItem?.q ?? 1}`
+                        : `${firstItem?.name ?? "-"} x ${firstItem?.q ?? 1} + ${items.length - 1} tipe`}
+                    </div>
+                    {items.length > 1 && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                    {items
+                      .slice(1)
+                      .map((it: any) => `${it.name} x ${it.q}`)
+                      .join(", ")}
                   </div>
-                </div>
+                )}
+	                  <div className="text-xs text-muted-foreground">
+	                    {String(data?.checkIn ?? "").slice(0, 10)} → {String(data?.checkOut ?? "").slice(0, 10)}
+	                  </div>
+	                </div>
               </div>
               <div className="mt-4 border-t border-border pt-4">
                 <div className="flex items-center justify-between">

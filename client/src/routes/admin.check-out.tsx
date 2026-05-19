@@ -8,6 +8,7 @@ import { ArrowRight } from "lucide-react";
 import { diffNights } from "@/lib/dates";
 import { useCreateDeposit, useDepositByBooking, useUpdateDeposit } from "@/hooks/useDeposits";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
+import { labelEnum } from "@/lib/labels";
 
 export const Route = createFileRoute("/admin/check-out")({
   head: () => ({ meta: [{ title: "Check-out" }] }),
@@ -38,8 +39,89 @@ function CheckOut() {
   >("RETURNED");
   const [deductedAmount, setDeductedAmount] = useState("");
   const [returnNote, setReturnNote] = useState("");
+  const [charges, setCharges] = useState<Array<{ kategori: string; nominalDigits: string; keterangan: string }>>([
+    { kategori: "", nominalDigits: "", keterangan: "" },
+  ]);
 
   const results = search.data ?? [];
+  const chargeTotal = charges.reduce((acc, c) => {
+    const n = Number(String(c.nominalDigits ?? "").replace(/[^\d]/g, "") || "0") || 0;
+    return acc + n;
+  }, 0);
+  const cashDepositSummary = (() => {
+    const dep: any = deposit.data;
+    const depType = (dep?.type as any) || (Number(dep?.jumlah ?? 0) > 0 ? "CASH" : "NONE");
+    const baseAmount = Number(dep?.amount ?? dep?.jumlah ?? 0) || 0;
+    if (!selected?._id || depType !== "CASH" || baseAmount <= 0) return null;
+
+    const maxDeductable = Math.min(baseAmount, chargeTotal);
+    const inputDeduct = Number(deductedAmount || "0") || 0;
+
+    if (returnStatus === "RETURNED") {
+      return {
+        depositAmount: baseAmount,
+        depositDeducted: 0,
+        depositReturned: baseAmount,
+        remainingChargeToPay: chargeTotal,
+      };
+    }
+    if (returnStatus === "NOT_RETURNED") {
+      const depositDeducted = maxDeductable;
+      return {
+        depositAmount: baseAmount,
+        depositDeducted,
+        depositReturned: Math.max(0, baseAmount - depositDeducted),
+        remainingChargeToPay: Math.max(0, chargeTotal - depositDeducted),
+      };
+    }
+    // PARTIALLY_DEDUCTED
+    const depositDeducted = Math.min(maxDeductable, Math.max(0, inputDeduct));
+    return {
+      depositAmount: baseAmount,
+      depositDeducted,
+      depositReturned: Math.max(0, baseAmount - depositDeducted),
+      remainingChargeToPay: Math.max(0, chargeTotal - depositDeducted),
+    };
+  })();
+
+  function normalizeBookingItems(b: any) {
+    const items = Array.isArray(b?.bookingItems) ? b.bookingItems : [];
+    if (items.length) return items;
+    return [
+      {
+        roomTypeId: b?.roomTypeId,
+        roomTypeName: (b?.roomTypeId as any)?.namaTipe,
+        quantity: 1,
+        assignedRoomIds: b?.roomId ? [b.roomId] : [],
+      },
+    ];
+  }
+
+  function occupiedRooms(b: any) {
+    const items = normalizeBookingItems(b);
+    const rooms: Array<{ nomorKamar: string; typeName: string }> = [];
+    for (const it of items) {
+      const rt = it?.roomTypeId && typeof it.roomTypeId === "object" ? it.roomTypeId : null;
+      const typeName = String(it?.roomTypeName ?? rt?.namaTipe ?? "-");
+      const assigned = Array.isArray(it?.assignedRoomIds) ? it.assignedRoomIds : [];
+      for (const r of assigned) {
+        const nomorKamar = typeof r === "object" ? String(r?.nomorKamar ?? "-") : String(r ?? "-");
+        rooms.push({ nomorKamar, typeName });
+      }
+    }
+    return rooms;
+  }
+
+  function roomSummary(b: any) {
+    const rooms = occupiedRooms(b);
+    if (!rooms.length) {
+      return (b?.roomId as any)?.nomorKamar ?? "-";
+    }
+    const uniq = Array.from(new Set(rooms.map((r) => r.nomorKamar))).filter(Boolean);
+    const shown = uniq.slice(0, 3).join(", ");
+    const more = uniq.length > 3 ? ` +${uniq.length - 3}` : "";
+    return `${shown}${more}`;
+  }
 
   useEffect(() => {
     if (!submitted) return;
@@ -104,16 +186,46 @@ function CheckOut() {
             : "RETURNED";
       let returnedAmount = 0;
       let deductedFinal = 0;
+
+      const chargePayload = charges
+        .map((c) => ({
+          kategori: String(c.kategori ?? "").trim(),
+          nominal: Number(String(c.nominalDigits ?? "").replace(/[^\d]/g, "") || "0") || 0,
+          keterangan: String(c.keterangan ?? "").trim(),
+        }))
+        .filter((c) => c.kategori && c.nominal > 0);
+
+      const chargeTotal = chargePayload.reduce((acc, c) => acc + (Number(c.nominal ?? 0) || 0), 0);
+
       if (depType === "CASH") {
+        const maxDeductable = Math.min(baseAmount, chargeTotal);
+
         if (finalReturnStatus === "RETURNED") {
           returnedAmount = baseAmount;
           deductedFinal = 0;
         } else if (finalReturnStatus === "NOT_RETURNED") {
-          returnedAmount = 0;
-          deductedFinal = baseAmount;
+          if (chargeTotal <= 0) {
+            toast.error("Tidak ada charge untuk dipotong dari deposit");
+            return;
+          }
+          // Deposit boleh dipakai sampai habis, tapi tidak boleh melebihi total charge.
+          deductedFinal = maxDeductable;
+          returnedAmount = Math.max(0, baseAmount - deductedFinal);
+          if (returnedAmount > 0) {
+            toast.error("Total charge lebih kecil dari deposit. Pilih 'Potong sebagian' agar sisa deposit bisa dikembalikan.");
+            return;
+          }
         } else if (finalReturnStatus === "PARTIALLY_DEDUCTED") {
-          if (deductedNum <= 0 || deductedNum >= baseAmount) {
-            toast.error("Potongan harus di antara 1 dan kurang dari nominal deposit");
+          if (chargeTotal <= 0) {
+            toast.error("Tidak ada charge untuk dipotong dari deposit");
+            return;
+          }
+          if (deductedNum <= 0 || deductedNum > baseAmount) {
+            toast.error("Potongan harus di antara 1 dan maksimal nominal deposit");
+            return;
+          }
+          if (deductedNum > chargeTotal) {
+            toast.error("Potongan tidak boleh melebihi total charge");
             return;
           }
           deductedFinal = deductedNum;
@@ -127,7 +239,7 @@ function CheckOut() {
             ? "Dikembalikan"
             : finalReturnStatus === "PENDING"
               ? "Ditahan"
-              : "Dipakai";
+            : "Dipakai";
         const depositPayload: any = {
           bookingId: selected._id,
           tamuId,
@@ -153,7 +265,17 @@ function CheckOut() {
 
       await checkOut.mutateAsync({
         id: selected._id,
-        payload: { bookingId: selected._id, tamuId },
+        payload: {
+          bookingId: selected._id,
+          tamuId,
+          charges: chargePayload,
+          depositSettlement: {
+            type: depType,
+            deductedAmount: deductedFinal,
+            returnedAmount,
+            returnStatus: finalReturnStatus,
+          },
+        },
       });
       toast.success("Check-out berhasil");
       setSubmitted(null);
@@ -162,6 +284,7 @@ function CheckOut() {
       setGuestName("");
       setGuestPhone("");
       setSelected(null);
+      setCharges([{ kategori: "", nominalDigits: "", keterangan: "" }]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal check-out");
     }
@@ -234,7 +357,7 @@ function CheckOut() {
                   <div key={b._id} className="flex items-center justify-between rounded-xl border border-border p-3">
                     <div>
                       <div className="text-sm font-semibold">
-                        {b.kodeBooking} · {(b.roomId as any)?.nomorKamar ?? "-"}
+                        {b.kodeBooking} · {roomSummary(b)}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {(b.guestSnapshot?.namaLengkap ??
@@ -258,15 +381,38 @@ function CheckOut() {
                 <div className="text-xs text-muted-foreground">
                   {selected.kodeBooking} · {(selected.tamuId as any)?.nama ?? "-"}
                 </div>
-                <div className="text-lg font-bold">
-                  {(selected.roomTypeId as any)?.namaTipe ?? "-"}
-                  {(selected.roomId as any)?._id && typeof selected.roomId === "object"
-                    ? ` — Kamar ${(selected.roomId as any).nomorKamar}`
-                    : ""}
-                </div>
+                <div className="text-lg font-bold">{labelEnum(selected.bookingStatus ?? selected.status)}</div>
                 <div className="mt-1 text-xs text-muted-foreground">
                   Check-in: {String(selected.checkIn).slice(0, 10)} · Check-out: {" "}
                   {String(selected.checkOut).slice(0, 10)}
+                </div>
+
+                <div className="mt-4 rounded-xl border border-border p-3 text-sm">
+                  <div className="text-sm font-bold">Kamar yang Ditempati</div>
+                  {(() => {
+                    const rooms = occupiedRooms(selected);
+                    const hasItems = Array.isArray((selected as any).bookingItems) && (selected as any).bookingItems.length;
+                    if (rooms.length) {
+                      return (
+                        <div className="mt-2 space-y-2">
+                          {rooms.map((r, idx) => (
+                            <div key={idx} className="flex items-center justify-between">
+                              <div className="font-semibold">{r.nomorKamar}</div>
+                              <div className="text-xs text-muted-foreground">Type: {r.typeName}</div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    if (hasItems) {
+                      return (
+                        <div className="mt-2 text-xs text-warning">
+                          Unit kamar belum tercatat. Pastikan booking sudah check-in.
+                        </div>
+                      );
+                    }
+                    return <div className="mt-2 text-xs text-muted-foreground">Unit kamar tidak tersedia.</div>;
+                  })()}
                 </div>
               </>
             )}
@@ -397,6 +543,84 @@ function CheckOut() {
               ) : (
                 <div className="text-muted-foreground">Tidak ada deposit tercatat.</div>
               )}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-bold">Charge Tambahan</div>
+                <button
+                  type="button"
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold"
+                  onClick={() =>
+                    setCharges((prev) => [...prev, { kategori: "", nominalDigits: "", keterangan: "" }])
+                  }
+                >
+                  Tambah
+                </button>
+              </div>
+              <div className="mt-3 space-y-3">
+                {charges.map((c, idx) => (
+                  <div key={idx} className="grid gap-2 md:grid-cols-[1.2fr_0.8fr_1fr_auto]">
+                    <input
+                      value={c.kategori}
+                      onChange={(e) =>
+                        setCharges((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, kategori: e.target.value } : x))
+                        )
+                      }
+                      placeholder="Kategori (Kerusakan, Late checkout, dll)"
+                      className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:border-accent"
+                    />
+                    <CurrencyInput
+                      label="Nominal"
+                      valueDigits={c.nominalDigits}
+                      onChangeDigits={(digits) =>
+                        setCharges((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, nominalDigits: digits } : x))
+                        )
+                      }
+                      placeholder="Rp 50.000"
+                    />
+                    <input
+                      value={c.keterangan}
+                      onChange={(e) =>
+                        setCharges((prev) =>
+                          prev.map((x, i) => (i === idx ? { ...x, keterangan: e.target.value } : x))
+                        )
+                      }
+                      placeholder="Keterangan (opsional)"
+                      className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:border-accent"
+                    />
+                    <button
+                      type="button"
+                      className="rounded-xl border border-border px-3 py-3 text-xs font-semibold hover:text-destructive"
+                      onClick={() =>
+                        setCharges((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
+                      }
+                      title="Hapus"
+                    >
+                      Hapus
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 text-sm font-semibold">
+                Total charge: {formatRupiah(chargeTotal)}
+              </div>
+              {cashDepositSummary && (
+                <div className="mt-3 rounded-xl border border-border p-3 text-sm">
+                  <div className="text-sm font-bold">Ringkasan Potong Deposit</div>
+                  <div className="mt-2 space-y-1">
+                    <Row label="Deposit" value={formatRupiah(cashDepositSummary.depositAmount)} />
+                    <Row label="Dipakai untuk charge" value={formatRupiah(cashDepositSummary.depositDeducted)} />
+                    <Row label="Dikembalikan" value={formatRupiah(cashDepositSummary.depositReturned)} />
+                    <Row label="Sisa bayar tamu" value={formatRupiah(cashDepositSummary.remainingChargeToPay)} />
+                  </div>
+                </div>
+              )}
+              <div className="mt-2 text-xs text-muted-foreground">
+                Jika charge dipotong dari deposit cash, isi nominal potongan di bagian Deposit (Potongan).
+              </div>
             </div>
 
             <button

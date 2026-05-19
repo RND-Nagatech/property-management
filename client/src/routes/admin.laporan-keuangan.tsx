@@ -24,6 +24,7 @@ function Laporan() {
   const today = new Date().toISOString().slice(0, 10);
   const [from, setFrom] = React.useState(today);
   const [to, setTo] = React.useState(today);
+  const [mode, setMode] = React.useState<"DETAIL" | "REKAP">("DETAIL");
   // Laporan keuangan dengan filter tanggal
   const report = useFinanceReport({ from, to });
   const settings = useSettings();
@@ -33,11 +34,57 @@ function Laporan() {
     return String(map.get("propertyName") ?? "").trim() || "Properti";
   }, [settings.data]);
 
+  const cashRows = React.useMemo(() => {
+    const saldoAwal = 0;
+    const payments = report.data?.payments ?? [];
+    const expenses = report.data?.expenses ?? [];
+    const rows: Array<{ date: string; kategori: string; deskripsi: string; inAmount: number; outAmount: number }> = [
+      { date: from, kategori: "Saldo Awal", deskripsi: "Saldo awal periode", inAmount: saldoAwal, outAmount: 0 },
+    ];
+
+    for (const p of payments) {
+      rows.push({
+        date: String(p.createdAt ?? "").slice(0, 10),
+        kategori: "Booking",
+        deskripsi: `Pembayaran booking ${p.kodeBooking ?? "-"} · ${p.invoice ?? "-"}`,
+        inAmount: Number(p.jumlah ?? 0) || 0,
+        outAmount: 0,
+      });
+    }
+    for (const e of expenses) {
+      const tipe = (e.tipeTransaksi ?? "OUT") as any;
+      const amount = Number(e.jumlah ?? 0) || 0;
+      rows.push({
+        date: String(e.tanggal ?? "").slice(0, 10),
+        kategori: String(e.kategori ?? "Kas Operasional"),
+        deskripsi: String(e.deskripsi ?? "-"),
+        inAmount: tipe === "IN" ? amount : 0,
+        outAmount: tipe === "OUT" ? amount : 0,
+      });
+    }
+
+    rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+    const totalIn = rows.reduce((acc, r) => acc + (Number(r.inAmount ?? 0) || 0), 0);
+    const totalOut = rows.reduce((acc, r) => acc + (Number(r.outAmount ?? 0) || 0), 0);
+    const saldoAkhir = saldoAwal + totalIn - totalOut;
+
+    const rekapMap = new Map<string, { kategori: string; inAmount: number; outAmount: number }>();
+    for (const r of rows) {
+      const key = r.kategori || "-";
+      const cur = rekapMap.get(key) ?? { kategori: key, inAmount: 0, outAmount: 0 };
+      cur.inAmount += Number(r.inAmount ?? 0) || 0;
+      cur.outAmount += Number(r.outAmount ?? 0) || 0;
+      rekapMap.set(key, cur);
+    }
+    const rekap = Array.from(rekapMap.values()).sort((a, b) => a.kategori.localeCompare(b.kategori));
+
+    return { rows, rekap, saldoAwal, totalIn, totalOut, saldoAkhir };
+  }, [from, report.data?.payments, report.data?.expenses]);
+
   function exportPdf() {
-    const month = report.data?.month ?? "";
-    const title = "Laporan Keuangan";
-    const rowsPayments = report.data?.payments ?? [];
-    const rowsExpenses = report.data?.expenses ?? [];
+    const title = mode === "DETAIL" ? "LAPORAN KEUANGAN CASH DETAIL" : "LAPORAN KEUANGAN CASH REKAP";
+    const printedAt = new Date();
 
     const html = `<!doctype html>
 <html>
@@ -46,59 +93,97 @@ function Laporan() {
   <title>${title}</title>
   <style>
     body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto; padding:24px; color:#111}
-    h1{margin:0; font-size:18px}
-    h2{margin:8px 0 0; font-size:14px; font-weight:600; color:#444}
+    h1{margin:0; font-size:16px}
+    h2{margin:6px 0 0; font-size:14px; font-weight:700}
     .meta{margin-top:6px; font-size:12px; color:#666}
     table{width:100%; border-collapse:collapse; margin-top:14px}
     th,td{border:1px solid #e5e7eb; padding:8px; font-size:12px; text-align:left; vertical-align:top}
     th{background:#f9fafb}
     .right{text-align:right}
+    .footer{margin-top:16px; display:flex; justify-content:space-between; font-size:11px; color:#666}
     @media print { .no-print{display:none} body{padding:0} }
   </style>
 </head>
 <body>
   <h1>${propertyName}</h1>
-  <h2>${title}${month ? ` — ${month}` : ""}</h2>
-  <div class="meta">Dicetak: ${new Date().toLocaleString("id-ID")}</div>
+  <h2>${title}</h2>
+  <div class="meta">Periode: ${from} s/d ${to}</div>
 
-  <h2 style="margin-top:18px">Ringkasan</h2>
+  ${
+    mode === "DETAIL"
+      ? `
   <table>
+    <thead>
+      <tr>
+        <th style="width:40px">No</th>
+        <th style="width:96px">Tanggal</th>
+        <th style="width:160px">Kategori</th>
+        <th>Deskripsi</th>
+        <th class="right" style="width:120px">Uang Masuk</th>
+        <th class="right" style="width:120px">Uang Keluar</th>
+      </tr>
+    </thead>
     <tbody>
-      <tr><th>Pendapatan Bulanan</th><td class="right">${formatRupiah(report.data?.pendapatanBulanan ?? 0)}</td></tr>
-      <tr><th>Kas Operasional Masuk</th><td class="right">${formatRupiah(report.data?.kasMasukBulanan ?? 0)}</td></tr>
-      <tr><th>Kas Operasional Keluar</th><td class="right">${formatRupiah(report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0)}</td></tr>
-      <tr><th>Saldo Kas Operasional</th><td class="right">${formatRupiah((report.data?.kasMasukBulanan ?? 0) - (report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0))}</td></tr>
-      <tr><th>Laba Bersih (Pendapatan + Saldo Kas Operasional)</th><td class="right">${formatRupiah((report.data?.pendapatanBulanan ?? 0) + ((report.data?.kasMasukBulanan ?? 0) - (report.data?.kasKeluarBulanan ?? report.data?.biayaBulanan ?? 0)))}</td></tr>
+      ${
+        cashRows.rows
+          .map(
+            (r, idx) =>
+              `<tr>
+                <td>${idx + 1}</td>
+                <td>${r.date}</td>
+                <td>${r.kategori}</td>
+                <td>${r.deskripsi}</td>
+                <td class="right">${r.inAmount ? formatRupiah(r.inAmount) : ""}</td>
+                <td class="right">${r.outAmount ? formatRupiah(r.outAmount) : ""}</td>
+              </tr>`
+          )
+          .join("") || `<tr><td colspan="6">Tidak ada transaksi.</td></tr>`
+      }
+    </tbody>
+  </table>
+  `
+      : `
+  <table>
+    <thead>
+      <tr>
+        <th>Kategori</th>
+        <th class="right" style="width:160px">Uang Masuk</th>
+        <th class="right" style="width:160px">Uang Keluar</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${
+        cashRows.rekap
+          .map(
+            (r) =>
+              `<tr>
+                <td>${r.kategori}</td>
+                <td class="right">${r.inAmount ? formatRupiah(r.inAmount) : ""}</td>
+                <td class="right">${r.outAmount ? formatRupiah(r.outAmount) : ""}</td>
+              </tr>`
+          )
+          .join("") || `<tr><td colspan="3">Tidak ada transaksi.</td></tr>`
+      }
+    </tbody>
+  </table>
+  `
+  }
+
+  <table style="margin-top:16px">
+    <tbody>
+      <tr><th>Saldo Awal</th><td class="right">${formatRupiah(cashRows.saldoAwal)}</td></tr>
+      <tr><th>Total Uang Masuk</th><td class="right">${formatRupiah(cashRows.totalIn)}</td></tr>
+      <tr><th>Total Uang Keluar</th><td class="right">${formatRupiah(cashRows.totalOut)}</td></tr>
+      <tr><th>Saldo Akhir</th><td class="right">${formatRupiah(cashRows.saldoAkhir)}</td></tr>
     </tbody>
   </table>
 
-  <h2 style="margin-top:18px">Pembayaran (Terverifikasi/Paid)</h2>
-  <table>
-    <thead><tr><th>Tanggal</th><th>No Booking</th><th>Invoice</th><th>Metode</th><th class="right">Jumlah</th><th>Status</th></tr></thead>
-    <tbody>
-      ${rowsPayments
-        .map(
-          (p) =>
-            `<tr><td>${String(p.createdAt ?? "").slice(0, 10)}</td><td>${p.kodeBooking ?? "-"}</td><td>${p.invoice ?? "-"}</td><td>${formatMetodePembayaran(p.metode)}</td><td class="right">${formatRupiah(p.jumlah ?? 0)}</td><td>${p.status ?? "-"}</td></tr>`
-        )
-        .join("") || `<tr><td colspan="6">Tidak ada data pembayaran.</td></tr>`}
-    </tbody>
-  </table>
+  <div class="footer">
+    <div>Printed By: Admin</div>
+    <div>${printedAt.toLocaleString("id-ID")}</div>
+  </div>
 
-  <h2 style="margin-top:18px">Kas Operasional</h2>
-  <table>
-    <thead><tr><th>Tanggal</th><th>Tipe</th><th>Kategori</th><th>Deskripsi</th><th class="right">Nominal</th></tr></thead>
-    <tbody>
-      ${rowsExpenses
-        .map(
-          (e) =>
-            `<tr><td>${String(e.tanggal ?? "").slice(0, 10)}</td><td>${(e).tipeTransaksi === "IN" ? "Uang Masuk" : "Uang Keluar"}</td><td>${e.kategori ?? "-"}</td><td>${e.deskripsi ?? "-"}</td><td class="right">${formatRupiah(e.jumlah ?? 0)}</td></tr>`
-        )
-        .join("") || `<tr><td colspan="5">Tidak ada data kas operasional.</td></tr>`}
-    </tbody>
-  </table>
-
-  <div class="no-print" style="margin-top:18px; font-size:12px; color:#666">Gunakan dialog print browser untuk simpan sebagai PDF.</div>
+  <div class="no-print" style="margin-top:14px; font-size:12px; color:#666">Gunakan dialog print browser untuk simpan sebagai PDF.</div>
 </body>
 </html>`;
 
@@ -155,7 +240,7 @@ function Laporan() {
 
       {/* Filter tanggal */}
       <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] mb-2">
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-3">
           <Input
             label="Dari tanggal"
             type="date"
@@ -168,6 +253,17 @@ function Laporan() {
             value={to}
             onChange={setTo}
           />
+          <div>
+            <label className="text-sm font-medium">Tipe Laporan</label>
+            <select
+              value={mode}
+              onChange={(e) => setMode(e.target.value as any)}
+              className="mt-1.5 w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+            >
+              <option value="DETAIL">Detail</option>
+              <option value="REKAP">Rekap</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -201,7 +297,9 @@ function Laporan() {
       {/* Bagian Okupansi & Pendapatan per Tipe di-hide sesuai permintaan */}
 
       <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] overflow-x-auto">
-        <h3 className="text-base font-bold mb-4">Detail Pembayaran</h3>
+        <h3 className="text-base font-bold mb-4">
+          {mode === "DETAIL" ? "Laporan Keuangan (Detail)" : "Laporan Keuangan (Rekap)"}
+        </h3>
         {report.isLoading && <div className="text-sm text-muted-foreground">Memuat...</div>}
         {report.isError && (
           <div className="text-sm text-destructive">
@@ -209,72 +307,94 @@ function Laporan() {
           </div>
         )}
         {!report.isLoading && !report.isError && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase text-muted-foreground">
-                <th className="pb-3 font-semibold">Tanggal</th>
-                <th className="pb-3 font-semibold">No Booking</th>
-                <th className="pb-3 font-semibold">Invoice</th>
-                <th className="pb-3 font-semibold">Metode</th>
-                <th className="pb-3 font-semibold text-right">Jumlah</th>
-                <th className="pb-3 font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {(report.data?.payments ?? []).map((p) => (
-                <tr key={p._id}>
-                  <td className="py-3.5 text-muted-foreground">{String(p.createdAt ?? "").slice(0, 10)}</td>
-                  <td className="py-3.5 font-medium">{p.kodeBooking ?? "-"}</td>
-                  <td className="py-3.5">{p.invoice ?? "-"}</td>
-                  <td className="py-3.5">{formatMetodePembayaran(p.metode)}</td>
-                  <td className="py-3.5 text-right font-semibold">{formatRupiah(p.jumlah ?? 0)}</td>
-                  <td className="py-3.5">{p.status ?? "-"}</td>
-                </tr>
-              ))}
-              {(report.data?.payments ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
-                    Belum ada pembayaran terverifikasi pada periode ini.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        )}
-      </div>
+          <>
+            {mode === "DETAIL" ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-muted-foreground">
+                    <th className="pb-3 font-semibold">No</th>
+                    <th className="pb-3 font-semibold">Tanggal</th>
+                    <th className="pb-3 font-semibold">Kategori</th>
+                    <th className="pb-3 font-semibold">Deskripsi</th>
+                    <th className="pb-3 font-semibold text-right">Uang Masuk</th>
+                    <th className="pb-3 font-semibold text-right">Uang Keluar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {cashRows.rows.map((r, idx) => (
+                    <tr key={`${r.date}-${r.kategori}-${idx}`}>
+                      <td className="py-3.5 text-muted-foreground">{idx + 1}</td>
+                      <td className="py-3.5 text-muted-foreground">{r.date}</td>
+                      <td className="py-3.5 font-medium">{r.kategori}</td>
+                      <td className="py-3.5">{r.deskripsi}</td>
+                      <td className="py-3.5 text-right font-semibold">
+                        {r.inAmount ? formatRupiah(r.inAmount) : "-"}
+                      </td>
+                      <td className="py-3.5 text-right font-semibold">
+                        {r.outAmount ? formatRupiah(r.outAmount) : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                  {cashRows.rows.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                        Tidak ada transaksi pada periode ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase text-muted-foreground">
+                    <th className="pb-3 font-semibold">Kategori</th>
+                    <th className="pb-3 font-semibold text-right">Uang Masuk</th>
+                    <th className="pb-3 font-semibold text-right">Uang Keluar</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {cashRows.rekap.map((r) => (
+                    <tr key={r.kategori}>
+                      <td className="py-3.5 font-medium">{r.kategori}</td>
+                      <td className="py-3.5 text-right font-semibold">
+                        {r.inAmount ? formatRupiah(r.inAmount) : "-"}
+                      </td>
+                      <td className="py-3.5 text-right font-semibold">
+                        {r.outAmount ? formatRupiah(r.outAmount) : "-"}
+                      </td>
+                    </tr>
+                  ))}
+                  {cashRows.rekap.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-6 text-center text-sm text-muted-foreground">
+                        Tidak ada transaksi pada periode ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
 
-      <div className="rounded-2xl bg-card p-5 shadow-[var(--shadow-card)] overflow-x-auto">
-        <h3 className="text-base font-bold mb-4">Detail Kas Operasional</h3>
-        {!report.isLoading && !report.isError && (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase text-muted-foreground">
-                <th className="pb-3 font-semibold">Tanggal</th>
-                <th className="pb-3 font-semibold">Tipe</th>
-                <th className="pb-3 font-semibold">Kategori</th>
-                <th className="pb-3 font-semibold">Deskripsi</th>
-                <th className="pb-3 font-semibold text-right">Jumlah</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {(report.data?.expenses ?? []).map((e) => (
-                <tr key={e._id}>
-                  <td className="py-3.5 text-muted-foreground">{String(e.tanggal ?? "").slice(0, 10)}</td>
-                  <td className="py-3.5 text-muted-foreground">{e.tipeTransaksi === "IN" ? "Uang Masuk" : "Uang Keluar"}</td>
-                  <td className="py-3.5 font-medium">{e.kategori ?? "-"}</td>
-                  <td className="py-3.5 text-muted-foreground">{e.deskripsi ?? "-"}</td>
-                  <td className="py-3.5 text-right font-semibold">{formatRupiah(e.jumlah ?? 0)}</td>
-                </tr>
-              ))}
-              {(report.data?.expenses ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
-                    Belum ada transaksi kas operasional pada periode ini.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            <div className="mt-4 grid gap-2 rounded-xl border border-border p-4 text-sm md:grid-cols-2">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Saldo Awal</span>
+                <span className="font-semibold">{formatRupiah(cashRows.saldoAwal)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Saldo Akhir</span>
+                <span className="font-semibold">{formatRupiah(cashRows.saldoAkhir)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Uang Masuk</span>
+                <span className="font-semibold">{formatRupiah(cashRows.totalIn)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Uang Keluar</span>
+                <span className="font-semibold">{formatRupiah(cashRows.totalOut)}</span>
+              </div>
+            </div>
+          </>
         )}
       </div>
     </div>

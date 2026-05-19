@@ -3,11 +3,12 @@ import { ArrowRight, ScanLine } from "lucide-react";
 import { PageHeader } from "./admin.tipe-kamar";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useBookingByCode, useCheckInBooking, useUpdateBooking } from "@/hooks/useBookings";
-import { useRooms } from "@/hooks/useRooms";
+import { useBookingByCode, useCheckInBooking } from "@/hooks/useBookings";
 import { formatRupiah } from "@/lib/currency";
 import { useCreateDeposit, useDepositByBooking, useUpdateDeposit } from "@/hooks/useDeposits";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
+import { labelEnum } from "@/lib/labels";
+import { diffNights } from "@/lib/dates";
 
 export const Route = createFileRoute("/admin/check-in")({
   head: () => ({ meta: [{ title: "Check-in" }] }),
@@ -25,15 +26,10 @@ function CheckInPage() {
   const scanRafRef = useRef<number | null>(null);
 
   const booking = useBookingByCode(submitted);
-  const updateBooking = useUpdateBooking();
   const checkIn = useCheckInBooking();
   const deposit = useDepositByBooking(booking.data?._id);
   const createDeposit = useCreateDeposit();
   const updateDeposit = useUpdateDeposit();
-
-  const roomTypeId = (booking.data?.roomTypeId as any)?._id;
-  const availableRooms = useRooms(roomTypeId ? { roomTypeId, status: "tersedia" } : undefined);
-  const [selectedRoomId, setSelectedRoomId] = useState("");
 
   const [depositType, setDepositType] = useState<"NONE" | "CASH" | "KTP" | "SIM" | "PASSPORT">(
     "NONE"
@@ -42,6 +38,27 @@ function CheckInPage() {
   const [identityName, setIdentityName] = useState("");
   const [identityNumber, setIdentityNumber] = useState("");
   const [depositNote, setDepositNote] = useState("");
+
+  const bookingEligibility = (() => {
+    const b: any = booking.data;
+    if (!b) return { can: false, reason: "" };
+    const bookingStatusRaw = String(b.bookingStatus ?? b.status ?? "").toLowerCase();
+    const paymentStatusRaw = String((b.payment?.status ?? b.paymentStatus ?? "") as any).toLowerCase();
+    if (bookingStatusRaw === "cancelled" || bookingStatusRaw === "cancelled_by_customer" || bookingStatusRaw === "dibatalkan") {
+      return { can: false, reason: "Booking sudah dibatalkan" };
+    }
+    if (bookingStatusRaw === "checked_in" || bookingStatusRaw === "check-in") {
+      return { can: false, reason: "Booking sudah check-in" };
+    }
+    if (bookingStatusRaw === "checked_out" || bookingStatusRaw === "check-out") {
+      return { can: false, reason: "Booking sudah check-out" };
+    }
+    // Backend guard: paymentStatus must be paid and bookingStatus must be confirmed.
+    if (!(paymentStatusRaw === "paid" && bookingStatusRaw === "confirmed")) {
+      return { can: false, reason: "Booking belum terkonfirmasi pembayaran" };
+    }
+    return { can: true, reason: "" };
+  })();
 
   useEffect(() => {
     if (!booking.data?._id) return;
@@ -99,23 +116,10 @@ function CheckInPage() {
         await createDeposit.mutateAsync(depositPayload);
       }
 
-      const hasRoom = Boolean((booking.data.roomId as any)?._id);
-      if (!hasRoom) {
-        if (!selectedRoomId) {
-          toast.error("Pilih kamar fisik terlebih dahulu");
-          return;
-        }
-        await updateBooking.mutateAsync({
-          id: booking.data._id,
-          payload: { roomId: selectedRoomId },
-        });
-      }
-
       await checkIn.mutateAsync(booking.data._id);
       toast.success("Check-in berhasil");
-      setSubmitted("");
-      setCode("");
-      setSelectedRoomId("");
+      // keep submitted code so UI can show auto-assigned rooms after check-in
+      setCode(booking.data.kodeBooking ?? code);
       setDepositType("NONE");
       setDepositAmount("");
       setIdentityName("");
@@ -303,21 +307,18 @@ function CheckInPage() {
               <>
                 <div className="flex items-center justify-between">
                   <div className="text-xs text-muted-foreground">
-                    {booking.data.kodeBooking} · {(booking.data.tamuId as any)?.nama ?? "-"}
+                    {booking.data.kodeBooking} ·{" "}
+                    {booking.data.guestSnapshot?.namaLengkap ??
+                      ((booking.data.customerId as any)?.namaLengkap ?? (booking.data.tamuId as any)?.nama ?? "-")}
                   </div>
                   <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-semibold text-accent">
-                    Siap Check-in
+                    {labelEnum((booking.data as any).bookingStatus ?? booking.data.status)}
                   </span>
                 </div>
-                <div className="mt-2 text-sm font-bold">
-                  {(booking.data.roomTypeId as any)?.namaTipe ?? "-"}
-                  {(booking.data.roomId as any)?._id && typeof booking.data.roomId === "object"
-                    ? ` — Kamar ${(booking.data.roomId as any).nomorKamar}`
-                    : ""}
-                </div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {String(booking.data.checkIn).slice(0, 10)} →{" "}
-                  {String(booking.data.checkOut).slice(0, 10)} · {booking.data.dewasa} tamu
+                  {String(booking.data.checkIn).slice(0, 10)} → {String(booking.data.checkOut).slice(0, 10)} ·{" "}
+                  {diffNights(String(booking.data.checkIn).slice(0, 10), String(booking.data.checkOut).slice(0, 10))}{" "}
+                  malam
                 </div>
 
                 <div className="mt-4 space-y-2 text-xs">
@@ -334,7 +335,7 @@ function CheckInPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Status pembayaran</span>
                     <span className="font-semibold">
-                      {(booking.data as any)?.payment?.status ?? booking.data.paymentStatus ?? "-"}
+                      {labelEnum((booking.data as any)?.payment?.status ?? booking.data.paymentStatus ?? "-")}
                     </span>
                   </div>
                 {(booking.data as any)?.payment?.invoice && (
@@ -345,6 +346,63 @@ function CheckInPage() {
                     </span>
                   </div>
                 )}
+              </div>
+
+              <div className="mt-4 rounded-xl border border-border p-3">
+                <div className="text-xs font-semibold text-muted-foreground">Detail Kamar Dipesan</div>
+                <div className="mt-2 space-y-2">
+                  {(() => {
+                    const b: any = booking.data;
+                    const nights = diffNights(String(b.checkIn).slice(0, 10), String(b.checkOut).slice(0, 10));
+                    const items = Array.isArray(b.bookingItems) && b.bookingItems.length
+                      ? b.bookingItems
+                      : [
+                          {
+                            roomTypeId: b.roomTypeId,
+                            roomTypeName: (b.roomTypeId as any)?.namaTipe,
+                            quantity: 1,
+                            pricePerNight: (b.roomTypeId as any)?.hargaDefault ?? 0,
+                            totalNights: nights,
+                            subtotal: b.total ?? 0,
+                            assignedRoomIds: b.roomId ? [b.roomId] : [],
+                          },
+                        ];
+                    return items.map((it: any, idx: number) => {
+                      const rt = it.roomTypeId && typeof it.roomTypeId === "object" ? it.roomTypeId : null;
+                      const name = String(it.roomTypeName ?? rt?.namaTipe ?? "-");
+                      const qty = Math.max(1, Number(it.quantity ?? 1));
+                      const ppn = Number(it.pricePerNight ?? rt?.hargaDefault ?? 0) || 0;
+                      const tn = Math.max(1, Number(it.totalNights ?? nights));
+                      const sub = Number(it.subtotal ?? (ppn * tn * qty)) || 0;
+                      const assigned = Array.isArray(it.assignedRoomIds) ? it.assignedRoomIds : [];
+                      return (
+                        <div key={idx} className="rounded-xl border border-border bg-secondary/20 p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="font-semibold">
+                              {name} x {qty}
+                            </div>
+                            <div className="text-xs font-semibold">{formatRupiah(sub)}</div>
+                          </div>
+                          <div className="mt-1 text-[11px] text-muted-foreground">
+                            Harga/malam: {formatRupiah(ppn)}
+                          </div>
+                          <div className="mt-2 text-[11px]">
+                            <span className="text-muted-foreground">Unit kamar: </span>
+                            {assigned.length ? (
+                              <span className="font-semibold">
+                                {assigned
+                                  .map((r: any) => (typeof r === "object" ? r.nomorKamar : String(r)))
+                                  .join(", ")}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Akan dipilih otomatis saat check-in</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
               </div>
 
               <div className="mt-4 rounded-xl border border-border p-3">
@@ -423,51 +481,16 @@ function CheckInPage() {
                 )}
               </div>
 
-              {!(booking.data.roomId as any)?._id && (
-                <div className="mt-4">
-                  <div className="text-xs font-semibold text-muted-foreground">
-                    Pilih Kamar Fisik
-                  </div>
-                    <select
-                      value={selectedRoomId}
-                      onChange={(e) => setSelectedRoomId(e.target.value)}
-                      className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-accent"
-                    >
-                      <option value="">— Pilih —</option>
-                      {(availableRooms.data ?? []).map((r) => (
-                        <option key={r._id} value={r._id}>
-                          {r.nomorKamar} (Lt. {r.lantai})
-                        </option>
-                      ))}
-                    </select>
-                    {availableRooms.isLoading && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        Memuat kamar tersedia...
-                      </div>
-                    )}
-                    {availableRooms.isError && (
-                      <div className="mt-2 text-xs text-destructive">
-                        {availableRooms.error instanceof Error
-                          ? availableRooms.error.message
-                          : "Gagal memuat kamar tersedia"}
-                      </div>
-                    )}
-                    {!availableRooms.isLoading &&
-                      !availableRooms.isError &&
-                      (availableRooms.data?.length ?? 0) === 0 && (
-                        <div className="mt-2 text-xs text-muted-foreground">
-                          Tidak ada kamar tersedia untuk tipe ini.
-                        </div>
-                      )}
-                  </div>
-                )}
-
                 <button
                   onClick={onConfirm}
+                  disabled={!bookingEligibility.can || checkIn.isPending}
                   className="mt-4 w-full rounded-xl bg-accent py-2.5 text-xs font-semibold text-accent-foreground"
                 >
                   Konfirmasi Check-in
                 </button>
+                {!bookingEligibility.can && (
+                  <div className="mt-2 text-xs text-destructive">{bookingEligibility.reason}</div>
+                )}
               </>
             )}
             {!booking.isLoading && !booking.isError && !booking.data && submitted && (

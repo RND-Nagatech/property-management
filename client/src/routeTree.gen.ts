@@ -31,6 +31,7 @@ import { Route as AdminTamuRouteImport } from './routes/admin.tamu'
 import { Route as AdminRekeningRouteImport } from './routes/admin.rekening'
 import { Route as AdminPengaturanRouteImport } from './routes/admin.pengaturan'
 import { Route as AdminPembayaranRouteImport } from './routes/admin.pembayaran'
+import { Route as AdminLaporanPembayaranRouteImport } from './routes/admin.laporan-pembayaran'
 import { Route as AdminLaporanKeuanganRouteImport } from './routes/admin.laporan-keuangan'
 import { Route as AdminLaporanBookingRouteImport } from './routes/admin.laporan-booking'
 import { Route as AdminKerusakanRouteImport } from './routes/admin.kerusakan'
@@ -152,6 +153,11 @@ const AdminPembayaranRoute = AdminPembayaranRouteImport.update({
   path: '/pembayaran',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminLaporanPembayaranRoute = AdminLaporanPembayaranRouteImport.update({
+  id: '/laporan-pembayaran',
+  path: '/laporan-pembayaran',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminLaporanKeuanganRoute = AdminLaporanKeuanganRouteImport.update({
   id: '/laporan-keuangan',
   path: '/laporan-keuangan',
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/admin/kerusakan': typeof AdminKerusakanRoute
   '/admin/laporan-booking': typeof AdminLaporanBookingRoute
   '/admin/laporan-keuangan': typeof AdminLaporanKeuanganRoute
+  '/admin/laporan-pembayaran': typeof AdminLaporanPembayaranRoute
   '/admin/pembayaran': typeof AdminPembayaranRoute
   '/admin/pengaturan': typeof AdminPengaturanRoute
   '/admin/rekening': typeof AdminRekeningRoute
@@ -255,6 +262,7 @@ export interface FileRoutesByTo {
   '/admin/kerusakan': typeof AdminKerusakanRoute
   '/admin/laporan-booking': typeof AdminLaporanBookingRoute
   '/admin/laporan-keuangan': typeof AdminLaporanKeuanganRoute
+  '/admin/laporan-pembayaran': typeof AdminLaporanPembayaranRoute
   '/admin/pembayaran': typeof AdminPembayaranRoute
   '/admin/pengaturan': typeof AdminPengaturanRoute
   '/admin/rekening': typeof AdminRekeningRoute
@@ -290,6 +298,7 @@ export interface FileRoutesById {
   '/admin/kerusakan': typeof AdminKerusakanRoute
   '/admin/laporan-booking': typeof AdminLaporanBookingRoute
   '/admin/laporan-keuangan': typeof AdminLaporanKeuanganRoute
+  '/admin/laporan-pembayaran': typeof AdminLaporanPembayaranRoute
   '/admin/pembayaran': typeof AdminPembayaranRoute
   '/admin/pengaturan': typeof AdminPengaturanRoute
   '/admin/rekening': typeof AdminRekeningRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
     | '/admin/kerusakan'
     | '/admin/laporan-booking'
     | '/admin/laporan-keuangan'
+    | '/admin/laporan-pembayaran'
     | '/admin/pembayaran'
     | '/admin/pengaturan'
     | '/admin/rekening'
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/admin/kerusakan'
     | '/admin/laporan-booking'
     | '/admin/laporan-keuangan'
+    | '/admin/laporan-pembayaran'
     | '/admin/pembayaran'
     | '/admin/pengaturan'
     | '/admin/rekening'
@@ -393,6 +404,7 @@ export interface FileRouteTypes {
     | '/admin/kerusakan'
     | '/admin/laporan-booking'
     | '/admin/laporan-keuangan'
+    | '/admin/laporan-pembayaran'
     | '/admin/pembayaran'
     | '/admin/pengaturan'
     | '/admin/rekening'
@@ -582,6 +594,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPembayaranRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/laporan-pembayaran': {
+      id: '/admin/laporan-pembayaran'
+      path: '/laporan-pembayaran'
+      fullPath: '/admin/laporan-pembayaran'
+      preLoaderRoute: typeof AdminLaporanPembayaranRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/laporan-keuangan': {
       id: '/admin/laporan-keuangan'
       path: '/laporan-keuangan'
@@ -666,6 +685,7 @@ interface AdminRouteChildren {
   AdminKerusakanRoute: typeof AdminKerusakanRoute
   AdminLaporanBookingRoute: typeof AdminLaporanBookingRoute
   AdminLaporanKeuanganRoute: typeof AdminLaporanKeuanganRoute
+  AdminLaporanPembayaranRoute: typeof AdminLaporanPembayaranRoute
   AdminPembayaranRoute: typeof AdminPembayaranRoute
   AdminPengaturanRoute: typeof AdminPengaturanRoute
   AdminRekeningRoute: typeof AdminRekeningRoute
@@ -687,6 +707,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminKerusakanRoute: AdminKerusakanRoute,
   AdminLaporanBookingRoute: AdminLaporanBookingRoute,
   AdminLaporanKeuanganRoute: AdminLaporanKeuanganRoute,
+  AdminLaporanPembayaranRoute: AdminLaporanPembayaranRoute,
   AdminPembayaranRoute: AdminPembayaranRoute,
   AdminPengaturanRoute: AdminPengaturanRoute,
   AdminRekeningRoute: AdminRekeningRoute,

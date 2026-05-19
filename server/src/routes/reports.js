@@ -92,14 +92,27 @@ reportsRouter.get("/finance", async (req, res, next) => {
     const kasKeluarHariIni = cashDayAgg[0]?.keluar ?? 0;
     const potonganDepositBulanan = depositCutAgg[0]?.total ?? 0;
 
-    // breakdown per tipe kamar (booking) berdasarkan total booking field
+    // breakdown per tipe kamar (booking) berdasarkan bookingItems (fallback ke legacy roomTypeId)
     const byRoomType = await Booking.aggregate([
       { $match: { checkIn: { $lt: end }, checkOut: { $gt: start } } },
       {
+        $addFields: {
+          _items: {
+            $cond: [
+              { $gt: [{ $size: { $ifNull: ["$bookingItems", []] } }, 0] },
+              "$bookingItems",
+              [{ roomTypeId: "$roomTypeId", quantity: 1, subtotal: "$total" }],
+            ],
+          },
+        },
+      },
+      { $unwind: "$_items" },
+      {
         $group: {
-          _id: "$roomTypeId",
+          _id: "$_items.roomTypeId",
           totalBooking: { $sum: 1 },
-          pendapatan: { $sum: "$total" },
+          jumlahKamar: { $sum: { $ifNull: ["$_items.quantity", 1] } },
+          pendapatan: { $sum: { $ifNull: ["$_items.subtotal", 0] } },
         },
       },
       {
@@ -118,6 +131,7 @@ reportsRouter.get("/finance", async (req, res, next) => {
           namaTipe: "$roomType.namaTipe",
           slug: "$roomType.slug",
           totalBooking: 1,
+          jumlahKamar: 1,
           pendapatan: 1,
         },
       },
@@ -181,6 +195,63 @@ reportsRouter.get("/finance", async (req, res, next) => {
         expenses,
       },
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Laporan pembayaran terverifikasi/lunas (dipisah dari laporan keuangan)
+reportsRouter.get("/payments", async (req, res, next) => {
+  try {
+    const paidStatuses = ["Terverifikasi", "paid"];
+
+    let from = typeof req.query.from === "string" ? new Date(req.query.from) : null;
+    let to = typeof req.query.to === "string" ? new Date(req.query.to) : null;
+    // If from and to are same day string, add 1 day to include the whole day.
+    if (from && to && req.query.from === req.query.to) {
+      to = new Date(to.getTime() + 24 * 60 * 60 * 1000);
+    }
+    const match = { status: { $in: paidStatuses } };
+    if (from && !Number.isNaN(from.getTime())) match.createdAt = { ...(match.createdAt ?? {}), $gte: from };
+    if (to && !Number.isNaN(to.getTime())) match.createdAt = { ...(match.createdAt ?? {}), $lt: to };
+
+    const payments = await Payment.aggregate([
+      { $match: match },
+      { $sort: { createdAt: -1 } },
+      { $limit: 1000 },
+      {
+        $lookup: {
+          from: "bookings",
+          localField: "bookingId",
+          foreignField: "_id",
+          as: "booking",
+        },
+      },
+      { $unwind: { path: "$booking", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 1,
+          createdAt: 1,
+          bookingId: 1,
+          kodeBooking: "$booking.kodeBooking",
+          invoice: 1,
+          metode: 1,
+          jumlah: 1,
+          status: 1,
+          customerName: {
+            $ifNull: ["$booking.guestSnapshot.namaLengkap", "-"],
+          },
+          customerPhone: {
+            $ifNull: ["$booking.guestSnapshot.noHp", "-"],
+          },
+          customerEmail: {
+            $ifNull: ["$booking.guestSnapshot.email", "-"],
+          },
+        },
+      },
+    ]);
+
+    res.json({ data: { payments } });
   } catch (err) {
     next(err);
   }

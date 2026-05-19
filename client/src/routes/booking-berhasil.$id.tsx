@@ -61,7 +61,23 @@ function Success() {
   }
 
   const data = booking.data;
-  const roomType = data?.roomTypeId;
+  const itemsRaw = Array.isArray(data?.bookingItems) ? data.bookingItems : [];
+  const items = itemsRaw.length
+    ? itemsRaw.map((it: any) => {
+        const rt = it?.roomTypeId && typeof it.roomTypeId === "object" ? it.roomTypeId : null;
+        const name = String(it?.roomTypeName ?? rt?.namaTipe ?? "-");
+        const q = Math.max(1, Number(it?.quantity ?? 1));
+        const thumb = rt?.gambarThumbnail ? String(rt.gambarThumbnail) : "";
+        return { name, q, thumb };
+      })
+    : [
+        {
+          name: String(data?.roomTypeId?.namaTipe ?? "-"),
+          q: 1,
+          thumb: String(data?.roomTypeId?.gambarThumbnail ?? ""),
+        },
+      ];
+  const firstItem = items[0];
   const invoiceUrl = `${(import.meta.env.VITE_API_BASE_URL as string) ?? "http://localhost:4000/api"}/invoices/${data?._id}`;
   return (
     <div className="min-h-screen bg-background">
@@ -97,9 +113,9 @@ function Success() {
 
           <div className="mt-6 rounded-2xl bg-secondary/50 p-5 text-left">
             <div className="flex items-center gap-3">
-              {roomType?.gambarThumbnail ? (
+              {firstItem?.thumb ? (
                 <img
-                  src={resolveMediaUrl(roomType.gambarThumbnail) || heroImg}
+                  src={resolveMediaUrl(firstItem.thumb) || heroImg}
                   alt=""
                   className="h-14 w-14 rounded-lg object-cover"
                 />
@@ -107,7 +123,19 @@ function Success() {
                 <div className="h-14 w-14 rounded-lg bg-secondary" />
               )}
               <div>
-                <div className="text-sm font-bold">{roomType?.namaTipe ?? "-"}</div>
+                <div className="text-sm font-bold">
+                  {items.length <= 1
+                    ? `${firstItem?.name ?? "-"} x ${firstItem?.q ?? 1}`
+                    : `${firstItem?.name ?? "-"} x ${firstItem?.q ?? 1} + ${items.length - 1} tipe`}
+                </div>
+                {items.length > 1 && (
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {items
+                      .slice(1)
+                      .map((it: any) => `${it.name} x ${it.q}`)
+                      .join(", ")}
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
                   <Calendar className="h-3 w-3" />{" "}
                   {String(data?.checkIn ?? "").slice(0, 10)} → {String(data?.checkOut ?? "").slice(0, 10)}

@@ -5,6 +5,7 @@ import { Room } from "../models/Room.js";
 import { Payment } from "../models/Payment.js";
 import { RoomType } from "../models/RoomType.js";
 import { Guest } from "../models/Guest.js";
+import { Expense } from "../models/Expense.js";
 import { requireAdminAuth } from "../auth.js";
 import { generateBookingCode } from "../utils/booking-code.js";
 
@@ -52,14 +53,35 @@ function parseLocalDate(value) {
 adminBookingsRouter.post("/", async (req, res, next) => {
   try {
     const body = req.body ?? {};
-    const required = ["tamuId", "roomTypeId", "checkIn", "checkOut"];
+    const required = ["tamuId", "checkIn", "checkOut"];
     for (const k of required) {
       if (!body[k]) return res.status(400).json({ error: { code: "BAD_REQUEST", message: `${k} wajib` } });
     }
     const tamuId = String(body.tamuId);
-    const roomTypeId = String(body.roomTypeId);
     if (!isObjectId(tamuId)) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "tamuId tidak valid" } });
-    if (!isObjectId(roomTypeId)) return res.status(400).json({ error: { code: "BAD_REQUEST", message: "roomTypeId tidak valid" } });
+    const bookingItemsInput = Array.isArray(body.bookingItems) ? body.bookingItems : null;
+    const legacyRoomTypeId = body.roomTypeId ? String(body.roomTypeId) : "";
+    if (bookingItemsInput && bookingItemsInput.length > 0) {
+      for (const it of bookingItemsInput) {
+        if (!it?.roomTypeId) {
+          return res.status(400).json({ error: { code: "BAD_REQUEST", message: "bookingItems.roomTypeId wajib" } });
+        }
+        if (!isObjectId(String(it.roomTypeId))) {
+          return res.status(400).json({ error: { code: "BAD_REQUEST", message: "bookingItems.roomTypeId tidak valid" } });
+        }
+        const q = Number(it.quantity ?? 0);
+        if (!Number.isFinite(q) || q < 1) {
+          return res.status(400).json({ error: { code: "BAD_REQUEST", message: "bookingItems.quantity minimal 1" } });
+        }
+      }
+    } else {
+      if (!legacyRoomTypeId) {
+        return res.status(400).json({ error: { code: "BAD_REQUEST", message: "roomTypeId atau bookingItems wajib" } });
+      }
+      if (!isObjectId(legacyRoomTypeId)) {
+        return res.status(400).json({ error: { code: "BAD_REQUEST", message: "roomTypeId tidak valid" } });
+      }
+    }
 
     const checkIn = parseLocalDate(body.checkIn);
     const checkOut = parseLocalDate(body.checkOut);
@@ -73,38 +95,85 @@ adminBookingsRouter.post("/", async (req, res, next) => {
     const guest = await Guest.findById(tamuId).select({ nama: 1, hp: 1, email: 1 }).lean();
     if (!guest) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Tamu tidak ditemukan" } });
 
-    const roomType = await RoomType.findById(roomTypeId).select({ hargaDefault: 1 }).lean();
-    if (!roomType) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Tipe kamar tidak ditemukan" } });
-
-    // Assign first available physical room (exclude maintenance) with no overlap on active bookings.
-    const rooms = await Room.find({ roomTypeId, status: { $ne: "perbaikan" } })
-      .sort({ nomorKamar: 1 })
-      .select({ _id: 1 })
-      .lean();
-
-    let assignedRoomId = null;
-    for (const r of rooms) {
-      const conflict = await Booking.exists({
-        roomId: r._id,
-        $or: [
-          { bookingStatus: { $in: ["pending_payment", "waiting_confirmation", "confirmed", "checked_in"] } },
-          { bookingStatus: { $exists: false }, status: { $in: ["Menunggu", "Dikonfirmasi", "Check-in"] } },
-        ],
-        ...overlaps(checkIn, checkOut),
-      });
-      if (!conflict) {
-        assignedRoomId = r._id;
-        break;
-      }
-    }
-    if (!assignedRoomId) {
-      return res.status(409).json({ error: { code: "NO_AVAILABILITY", message: "Kamar tidak tersedia di tanggal tersebut" } });
-    }
-
     const msDay = 24 * 60 * 60 * 1000;
     const nights = Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / msDay));
-    const pricePerNight = Number(roomType.hargaDefault ?? 0);
-    const subtotal = pricePerNight * nights;
+    const bookingItems = [];
+    let total = 0;
+    let legacyAssignedRoomId = null;
+    let legacyRoomTypeForCompat = legacyRoomTypeId || null;
+
+    const itemsToCreate = bookingItemsInput && bookingItemsInput.length > 0
+      ? bookingItemsInput.map((it) => ({ roomTypeId: String(it.roomTypeId), quantity: Number(it.quantity) }))
+      : [{ roomTypeId: legacyRoomTypeId, quantity: 1 }];
+
+    const roomTypeIds = [...new Set(itemsToCreate.map((it) => it.roomTypeId))];
+    const roomTypes = await RoomType.find({ _id: { $in: roomTypeIds } })
+      .select({ namaTipe: 1, hargaDefault: 1 })
+      .lean();
+    const roomTypeById = new Map(roomTypes.map((t) => [String(t._id), t]));
+    for (const id of roomTypeIds) {
+      if (!roomTypeById.has(String(id))) {
+        return res.status(404).json({ error: { code: "NOT_FOUND", message: "Tipe kamar tidak ditemukan" } });
+      }
+    }
+
+    const conflictBookings = await Booking.find({
+      $or: [
+        { bookingStatus: { $in: ["pending_payment", "waiting_confirmation", "confirmed", "checked_in"] } },
+        { bookingStatus: { $exists: false }, status: { $in: ["Menunggu", "Dikonfirmasi", "Check-in"] } },
+      ],
+      ...overlaps(checkIn, checkOut),
+      $or: [{ roomId: { $exists: true } }, { "bookingItems.assignedRoomIds.0": { $exists: true } }],
+    })
+      .select({ roomId: 1, bookingItems: 1 })
+      .lean();
+    const takenRoomIds = new Set();
+    for (const b of conflictBookings) {
+      if (b.roomId) takenRoomIds.add(String(b.roomId));
+      const its = Array.isArray(b.bookingItems) ? b.bookingItems : [];
+      for (const it of its) {
+        for (const rid of it?.assignedRoomIds ?? []) takenRoomIds.add(String(rid));
+      }
+    }
+
+    for (const it of itemsToCreate) {
+      const rt = roomTypeById.get(String(it.roomTypeId));
+      const pricePerNight = Number(rt?.hargaDefault ?? 0);
+      const quantity = Math.max(1, Number(it.quantity ?? 1));
+
+      const rooms = await Room.find({ roomTypeId: it.roomTypeId, status: { $ne: "perbaikan" } })
+        .sort({ nomorKamar: 1 })
+        .select({ _id: 1 })
+        .lean();
+
+      const assignedRoomIds = [];
+      for (const r of rooms) {
+        if (takenRoomIds.has(String(r._id))) continue;
+        assignedRoomIds.push(r._id);
+        takenRoomIds.add(String(r._id));
+        if (assignedRoomIds.length >= quantity) break;
+      }
+      if (assignedRoomIds.length < quantity) {
+        return res.status(409).json({
+          error: { code: "NO_AVAILABILITY", message: `Kamar tidak tersedia untuk tipe ${rt?.namaTipe ?? ""}` },
+        });
+      }
+
+      const subtotal = pricePerNight * nights * quantity;
+      total += subtotal;
+      bookingItems.push({
+        roomTypeId: it.roomTypeId,
+        roomTypeName: rt?.namaTipe ?? "",
+        quantity,
+        pricePerNight,
+        totalNights: nights,
+        subtotal,
+        assignedRoomIds,
+      });
+
+      if (!legacyAssignedRoomId) legacyAssignedRoomId = assignedRoomIds[0] ?? null;
+      if (!legacyRoomTypeForCompat) legacyRoomTypeForCompat = it.roomTypeId;
+    }
 
     const paymentMethod = String(body.payment?.metode ?? body.paymentMethod ?? "").trim();
     const cashPayment = paymentMethod === "cash";
@@ -116,7 +185,7 @@ adminBookingsRouter.post("/", async (req, res, next) => {
     // - transfer bank (admin): juga langsung lunas (paid) + booking confirmed (bukti hanya lampiran)
     let bookingStatus = cashPayment || transferPayment ? "confirmed" : "pending_payment";
     let paymentStatus = cashPayment || transferPayment ? "paid" : "unpaid";
-    const total = Number(body.total ?? subtotal) || subtotal;
+    total = Number(body.total ?? total) || total;
 
     const kodeBooking = await generateBookingCode(new Date());
 
@@ -130,8 +199,9 @@ adminBookingsRouter.post("/", async (req, res, next) => {
         nik: "",
         alamat: "",
       },
-      roomTypeId,
-      roomId: assignedRoomId,
+      roomTypeId: legacyRoomTypeForCompat,
+      roomId: legacyAssignedRoomId,
+      bookingItems: bookingItemsInput && bookingItemsInput.length > 0 ? bookingItems : undefined,
       checkIn,
       checkOut,
       dewasa: Number(body.dewasa ?? 2),
@@ -181,13 +251,16 @@ adminBookingsRouter.get("/by-code/:bookingCode", async (req, res, next) => {
     const kodeBookingRaw = String(req.params.bookingCode ?? "").trim();
     const kodeBooking = kodeBookingRaw.toUpperCase();
     // Case-insensitive match to be resilient to scanner output.
-    const booking = await Booking.findOne({ kodeBooking: new RegExp(`^${kodeBooking.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") })
+    const bookingDoc = await Booking.findOne({ kodeBooking: new RegExp(`^${kodeBooking.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") })
       .populate("roomTypeId")
       .populate("roomId")
       .populate("customerId")
+      .populate("bookingItems.roomTypeId")
+      .populate("bookingItems.assignedRoomIds")
       .select("-__v")
-      .lean();
-    if (!booking) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
+      .exec();
+    if (!bookingDoc) return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
+    const booking = bookingDoc.toObject();
 
     const payment = await Payment.findOne({ bookingId: booking._id })
       .sort({ createdAt: -1 })
@@ -225,13 +298,16 @@ adminBookingsRouter.get("/checkout-search", async (req, res, next) => {
       match.roomId = room._id;
     }
 
-    let items = await Booking.find(match)
+    const itemDocs = await Booking.find(match)
       .populate("roomTypeId")
       .populate("roomId")
       .populate("tamuId")
       .populate("customerId")
+      .populate("bookingItems.roomTypeId")
+      .populate("bookingItems.assignedRoomIds")
       .select("-__v")
-      .lean();
+      .exec();
+    let items = itemDocs.map((d) => d.toObject());
 
     const guestName = guestNameRaw.toLowerCase();
     const guestPhone = guestPhoneRaw.toLowerCase();
@@ -270,6 +346,83 @@ adminBookingsRouter.post("/:id/check-in", async (req, res, next) => {
       });
     }
 
+    // Ensure auto-assigned physical rooms exist for legacy and bookingItems before check-in.
+    // We keep the same overlap rules as booking creation.
+    const checkIn = booking.checkIn;
+    const checkOut = booking.checkOut;
+    const activeMatch = {
+      $or: [
+        { bookingStatus: { $in: ["pending_payment", "waiting_confirmation", "confirmed", "checked_in"] } },
+        { bookingStatus: { $exists: false }, status: { $in: ["Menunggu", "Dikonfirmasi", "Check-in"] } },
+      ],
+      ...overlaps(checkIn, checkOut),
+      $or: [{ roomId: { $exists: true } }, { "bookingItems.assignedRoomIds.0": { $exists: true } }],
+    };
+    const conflictBookings = await Booking.find(activeMatch)
+      .select({ roomId: 1, bookingItems: 1 })
+      .lean();
+    const takenRoomIds = new Set();
+    for (const b of conflictBookings) {
+      if (b.roomId) takenRoomIds.add(String(b.roomId));
+      const its = Array.isArray(b.bookingItems) ? b.bookingItems : [];
+      for (const it of its) {
+        for (const rid of it?.assignedRoomIds ?? []) takenRoomIds.add(String(rid));
+      }
+    }
+
+    const items = Array.isArray(booking.bookingItems) ? booking.bookingItems : [];
+    if (items.length) {
+      for (const it of items) {
+        const typeId = String(it.roomTypeId ?? "");
+        const quantity = Math.max(1, Number(it.quantity ?? 1));
+        const current = Array.isArray(it.assignedRoomIds) ? it.assignedRoomIds : [];
+        if (current.length >= quantity) continue;
+
+        const rooms = await Room.find({ roomTypeId: typeId, status: { $ne: "perbaikan" } })
+          .sort({ nomorKamar: 1 })
+          .select({ _id: 1 })
+          .lean();
+
+        const assigned = [...current];
+        for (const r of rooms) {
+          if (takenRoomIds.has(String(r._id))) continue;
+          assigned.push(r._id);
+          takenRoomIds.add(String(r._id));
+          if (assigned.length >= quantity) break;
+        }
+        if (assigned.length < quantity) {
+          return res.status(409).json({
+            error: { code: "NO_AVAILABILITY", message: "Kamar tidak tersedia di tanggal tersebut" },
+          });
+        }
+        it.assignedRoomIds = assigned;
+      }
+
+      // Keep legacy fields populated for older UI
+      if (!booking.roomTypeId) booking.roomTypeId = items[0]?.roomTypeId;
+      if (!booking.roomId) booking.roomId = items[0]?.assignedRoomIds?.[0] ?? booking.roomId;
+    } else {
+      // Legacy booking without bookingItems
+      if (!booking.roomId && booking.roomTypeId) {
+        const rooms = await Room.find({ roomTypeId: booking.roomTypeId, status: { $ne: "perbaikan" } })
+          .sort({ nomorKamar: 1 })
+          .select({ _id: 1 })
+          .lean();
+        let assignedRoomId = null;
+        for (const r of rooms) {
+          if (takenRoomIds.has(String(r._id))) continue;
+          assignedRoomId = r._id;
+          break;
+        }
+        if (!assignedRoomId) {
+          return res.status(409).json({
+            error: { code: "NO_AVAILABILITY", message: "Kamar tidak tersedia di tanggal tersebut" },
+          });
+        }
+        booking.roomId = assignedRoomId;
+      }
+    }
+
     booking.bookingStatus = "checked_in";
     booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
     await booking.save();
@@ -277,8 +430,23 @@ adminBookingsRouter.post("/:id/check-in", async (req, res, next) => {
     if (booking.roomId) {
       await Room.findByIdAndUpdate(booking.roomId, { status: "terisi" });
     }
+    const roomIds = items.flatMap((it) => it?.assignedRoomIds ?? []).filter(Boolean);
+    if (roomIds.length) {
+      await Room.updateMany({ _id: { $in: roomIds } }, { $set: { status: "terisi" } });
+    }
 
-    res.json({ data: booking.toObject() });
+    const freshDoc = await Booking.findById(booking._id)
+      .populate("roomTypeId")
+      .populate("roomId")
+      .populate("tamuId")
+      .populate("customerId")
+      .populate("bookingItems.roomTypeId")
+      .populate("bookingItems.assignedRoomIds")
+      .select("-__v")
+      .exec();
+    const fresh = freshDoc ? freshDoc.toObject() : null;
+
+    res.json({ data: fresh ?? booking.toObject() });
   } catch (err) {
     next(err);
   }
@@ -297,12 +465,57 @@ adminBookingsRouter.post("/:id/check-out", async (req, res, next) => {
       return res.status(409).json({ error: { code: "NOT_ALLOWED", message: "Booking belum check-in" } });
     }
 
+    const body = req.body ?? {};
+    const chargesInput = Array.isArray(body.charges) ? body.charges : [];
+    const charges = chargesInput
+      .map((c) => ({
+        kategori: String(c?.kategori ?? c?.nama ?? c?.category ?? "").trim(),
+        nominal: Number(c?.nominal ?? c?.amount ?? 0) || 0,
+        keterangan: String(c?.keterangan ?? c?.note ?? "").trim(),
+      }))
+      .filter((c) => c.kategori && c.nominal > 0);
+
+    const chargesTotal = charges.reduce((acc, c) => acc + (Number(c.nominal) || 0), 0);
+    booking.checkoutCharges = charges.length ? charges : undefined;
+    booking.checkoutChargesTotal = chargesTotal;
+    booking.checkoutTotal = Number(booking.total ?? 0) + chargesTotal;
+
+    // Snapshot deposit settlement (optional; deposit is still the source of truth).
+    if (body.depositSettlement && typeof body.depositSettlement === "object") {
+      booking.depositSettlement = {
+        type: String(body.depositSettlement.type ?? ""),
+        deductedAmount: Number(body.depositSettlement.deductedAmount ?? 0) || 0,
+        returnedAmount: Number(body.depositSettlement.returnedAmount ?? 0) || 0,
+        returnStatus: String(body.depositSettlement.returnStatus ?? ""),
+      };
+    }
+
     booking.bookingStatus = "checked_out";
     booking.status = mapBookingStatusToLegacy(booking.bookingStatus);
     await booking.save();
 
     if (booking.roomId) {
       await Room.findByIdAndUpdate(booking.roomId, { status: "tersedia" });
+    }
+    const items = Array.isArray(booking.bookingItems) ? booking.bookingItems : [];
+    const roomIds = items.flatMap((it) => it?.assignedRoomIds ?? []).filter(Boolean);
+    if (roomIds.length) {
+      await Room.updateMany({ _id: { $in: roomIds } }, { $set: { status: "tersedia" } });
+    }
+
+    // Record checkout charges as cashflow IN for financial report
+    if (charges.length) {
+      const tanggal = new Date();
+      await Expense.insertMany(
+        charges.map((c) => ({
+          tanggal,
+          tipeTransaksi: "IN",
+          kategori: c.kategori,
+          deskripsi: `${booking.kodeBooking} · ${c.keterangan || "Charge tambahan saat check-out"}`,
+          jumlah: c.nominal,
+          metode: "checkout",
+        }))
+      );
     }
 
     res.json({ data: booking.toObject() });

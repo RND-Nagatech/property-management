@@ -37,6 +37,21 @@ function bookingIsActive(b) {
   return ["Menunggu", "Dikonfirmasi", "Check-in"].includes(legacy);
 }
 
+function bookingQtyForType(booking, typeId) {
+  const target = String(typeId);
+  const items = Array.isArray(booking?.bookingItems) ? booking.bookingItems : [];
+  if (items.length) {
+    return items.reduce((acc, it) => {
+      if (!it?.roomTypeId) return acc;
+      if (String(it.roomTypeId) !== target) return acc;
+      const q = Number(it.quantity ?? 0) || 0;
+      return acc + Math.max(0, q);
+    }, 0);
+  }
+  if (booking?.roomTypeId && String(booking.roomTypeId) === target) return 1;
+  return 0;
+}
+
 availabilityRouter.get("/", async (req, res, next) => {
   try {
     const fromRaw = typeof req.query.from === "string" ? req.query.from : "";
@@ -74,13 +89,14 @@ availabilityRouter.get("/", async (req, res, next) => {
     ]);
     const totalByType = new Map(roomCounts.map((r) => [String(r._id), r.total]));
 
-    // Fetch bookings overlapping range for these types (active only)
+    // Fetch bookings overlapping range for these types (active only).
+    // Support both legacy (roomTypeId) and new (bookingItems.roomTypeId).
     const bookings = await Booking.find({
-      roomTypeId: { $in: typeIds },
+      $or: [{ roomTypeId: { $in: typeIds } }, { "bookingItems.roomTypeId": { $in: typeIds } }],
       checkIn: { $lt: toExclusive },
       checkOut: { $gt: from },
     })
-      .select({ roomTypeId: 1, checkIn: 1, checkOut: 1, bookingStatus: 1, status: 1 })
+      .select({ roomTypeId: 1, bookingItems: 1, checkIn: 1, checkOut: 1, bookingStatus: 1, status: 1 })
       .lean();
 
     const activeBookings = bookings.filter(bookingIsActive);
@@ -96,11 +112,11 @@ availabilityRouter.get("/", async (req, res, next) => {
       const perDay = days.map((day) => {
         const nextDay = addDays(day, 1);
         const booked = activeBookings.reduce((acc, b) => {
-          if (String(b.roomTypeId) !== String(t._id)) return acc;
           const ci = new Date(b.checkIn);
           const co = new Date(b.checkOut);
           if (!isValidDate(ci) || !isValidDate(co)) return acc;
-          return overlapsRange(ci, co, day, nextDay) ? acc + 1 : acc;
+          if (!overlapsRange(ci, co, day, nextDay)) return acc;
+          return acc + bookingQtyForType(b, t._id);
         }, 0);
         const available = Math.max(0, total - booked);
         const status =
@@ -124,4 +140,3 @@ availabilityRouter.get("/", async (req, res, next) => {
     next(err);
   }
 });
-

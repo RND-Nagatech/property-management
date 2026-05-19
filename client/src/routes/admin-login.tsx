@@ -130,7 +130,7 @@ function AdminLogin() {
               <input
                 type="text"
                 name="username"
-                placeholder="Silakan isi username admin"
+                placeholder="Masukkan Username"
                 ref={usernameRef}
                 defaultValue={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -144,7 +144,7 @@ function AdminLogin() {
                 <input
                   type={show ? "text" : "password"}
                   name="password"
-                  placeholder="••••••••"
+                  placeholder="Masukkan Password"
                   ref={passwordRef}
                   defaultValue={password}
                   onChange={(e) => setPassword(e.target.value)}

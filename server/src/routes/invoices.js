@@ -30,6 +30,7 @@ invoicesRouter.get("/:bookingId", async (req, res, next) => {
 
     const booking = await Booking.findById(bookingId)
       .populate("roomTypeId")
+      .populate("bookingItems.roomTypeId")
       .select("-__v")
       .lean();
 
@@ -37,10 +38,31 @@ invoicesRouter.get("/:bookingId", async (req, res, next) => {
       return res.status(404).json({ error: { code: "NOT_FOUND", message: "Booking tidak ditemukan" } });
     }
 
-    const roomType = typeof booking.roomTypeId === "object" ? booking.roomTypeId : null;
     const nights = diffNights(booking.checkIn, booking.checkOut);
-    const pricePerNight = roomType?.hargaDefault ?? 0;
-    const totalAmount = Number(booking.total ?? pricePerNight * nights);
+    const itemsRaw = Array.isArray(booking.bookingItems) && booking.bookingItems.length
+      ? booking.bookingItems
+      : [
+          {
+            roomTypeId: booking.roomTypeId,
+            roomTypeName:
+              typeof booking.roomTypeId === "object" ? booking.roomTypeId?.namaTipe : "",
+            quantity: 1,
+            pricePerNight: (typeof booking.roomTypeId === "object" ? booking.roomTypeId?.hargaDefault : 0) ?? 0,
+            totalNights: nights,
+            subtotal: Number(booking.total ?? 0),
+          },
+        ];
+
+    const items = itemsRaw.map((it) => {
+      const rt = typeof it.roomTypeId === "object" ? it.roomTypeId : null;
+      const name = String(it.roomTypeName ?? rt?.namaTipe ?? "-");
+      const qty = Math.max(1, Number(it.quantity ?? 1));
+      const ppn = Number(it.pricePerNight ?? rt?.hargaDefault ?? 0);
+      const tn = Math.max(1, Number(it.totalNights ?? nights));
+      const sub = Number(it.subtotal ?? ppn * tn * qty);
+      return { name, qty, ppn, tn, sub };
+    });
+    const totalAmount = Number(booking.total ?? items.reduce((acc, it) => acc + (Number(it.sub) || 0), 0));
 
     const guestName =
       booking.guestSnapshot?.namaLengkap ||
@@ -84,11 +106,19 @@ invoicesRouter.get("/:bookingId", async (req, res, next) => {
 
     <table>
       <tr><td>Nama Tamu</td><td>${guestName}</td></tr>
-      <tr><td>Tipe Kamar</td><td>${roomType?.namaTipe ?? "-"}</td></tr>
       <tr><td>Check-in</td><td>${String(booking.checkIn).slice(0,10)}</td></tr>
       <tr><td>Check-out</td><td>${String(booking.checkOut).slice(0,10)}</td></tr>
       <tr><td>Total Malam</td><td>${nights}</td></tr>
-      <tr><td>Harga / malam</td><td>${rupiah(pricePerNight)}</td></tr>
+      <tr><td>Item Kamar</td><td style="text-align:right;font-weight:600">
+        ${items
+          .map((it) => `${it.name} x ${it.qty} (${it.tn} malam)`)
+          .join("<br/>")}
+      </td></tr>
+      <tr><td>Subtotal</td><td style="text-align:right;font-weight:600">
+        ${items
+          .map((it) => `${it.name}: ${rupiah(it.sub)}`)
+          .join("<br/>")}
+      </td></tr>
       <tr><td>Total Pembayaran</td><td>${rupiah(totalAmount)}</td></tr>
     </table>
 
@@ -103,4 +133,3 @@ invoicesRouter.get("/:bookingId", async (req, res, next) => {
     next(err);
   }
 });
-

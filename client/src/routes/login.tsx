@@ -34,6 +34,7 @@ function Login() {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
 
@@ -46,7 +47,7 @@ function Login() {
         method: "POST",
         body: JSON.stringify({ identifier, password }),
       });
-      setAuthToken(res.token);
+      setAuthToken(res.token, { persist: remember });
       navigate({ to: redirectTo });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal login");
@@ -127,6 +128,8 @@ function Login() {
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
                   className="h-4 w-4 rounded border-input accent-[oklch(0.72_0.15_162)]"
                 />
                 Ingat saya

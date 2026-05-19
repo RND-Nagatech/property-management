@@ -91,3 +91,66 @@ authRouter.get("/me", requireAuth, async (req, res, next) => {
   }
 });
 
+authRouter.put("/me", requireAuth, async (req, res, next) => {
+  try {
+    const userId = String(req.user?.sub ?? "");
+    if (!mongoose.isValidObjectId(userId)) {
+      return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "Token tidak valid" } });
+    }
+
+    const body = req.body ?? {};
+    const namaLengkap = body.namaLengkap != null ? String(body.namaLengkap).trim() : undefined;
+    const email = body.email != null ? String(body.email).trim().toLowerCase() : undefined;
+    const noHp = body.noHp != null ? String(body.noHp).trim() : undefined;
+    const password = body.password != null ? String(body.password) : "";
+
+    if (namaLengkap !== undefined && !namaLengkap) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "namaLengkap wajib" } });
+    }
+    if (email !== undefined && !email) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "email wajib" } });
+    }
+    if (noHp !== undefined && !noHp) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "noHp wajib" } });
+    }
+    if (password && password.length < 6) {
+      return res.status(400).json({ error: { code: "BAD_REQUEST", message: "Password minimal 6 karakter" } });
+    }
+
+    // Check duplicate email/noHp (exclude self)
+    if (email) {
+      const exists = await Customer.findOne({ email, _id: { $ne: userId } }).select("_id").lean();
+      if (exists) {
+        return res.status(409).json({ error: { code: "DUPLICATE", message: "Email sudah digunakan" } });
+      }
+    }
+    if (noHp) {
+      const exists = await Customer.findOne({ noHp, _id: { $ne: userId } }).select("_id").lean();
+      if (exists) {
+        return res.status(409).json({ error: { code: "DUPLICATE", message: "No HP sudah digunakan" } });
+      }
+    }
+
+    const update = {};
+    if (namaLengkap !== undefined) update.namaLengkap = namaLengkap;
+    if (email !== undefined) update.email = email;
+    if (noHp !== undefined) update.noHp = noHp;
+
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      update.passwordHash = passwordHash;
+    }
+
+    const updated = await Customer.findByIdAndUpdate(userId, { $set: update }, { new: true })
+      .select("-passwordHash -__v")
+      .lean();
+
+    if (!updated) return res.status(401).json({ error: { code: "UNAUTHORIZED", message: "User tidak ditemukan" } });
+    res.json({ data: updated });
+  } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(409).json({ error: { code: "DUPLICATE", message: "Email atau No HP sudah digunakan" } });
+    }
+    next(err);
+  }
+});

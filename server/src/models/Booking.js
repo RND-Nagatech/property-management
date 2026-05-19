@@ -12,8 +12,29 @@ const BookingSchema = new mongoose.Schema(
       nik: { type: String, required: false, default: "" },
       alamat: { type: String, required: false, default: "" },
     },
-    roomTypeId: { type: mongoose.Schema.Types.ObjectId, ref: "RoomType", required: true, index: true },
+    // Legacy single-room booking fields (kept for backward compatibility)
+    roomTypeId: { type: mongoose.Schema.Types.ObjectId, ref: "RoomType", required: false, index: true },
     roomId: { type: mongoose.Schema.Types.ObjectId, ref: "Room", required: false, index: true }, // assigned physical room
+
+    // New: multi room types in one booking
+    bookingItems: {
+      type: [
+        new mongoose.Schema(
+          {
+            roomTypeId: { type: mongoose.Schema.Types.ObjectId, ref: "RoomType", required: true },
+            roomTypeName: { type: String, required: false, default: "" },
+            quantity: { type: Number, required: true, min: 1, default: 1 },
+            pricePerNight: { type: Number, required: true, default: 0 },
+            totalNights: { type: Number, required: true, default: 1 },
+            subtotal: { type: Number, required: true, default: 0 },
+            assignedRoomIds: { type: [mongoose.Schema.Types.ObjectId], ref: "Room", required: false, default: [] },
+          },
+          { _id: false }
+        ),
+      ],
+      required: false,
+      default: undefined,
+    },
     checkIn: { type: Date, required: true },
     checkOut: { type: Date, required: true },
     dewasa: { type: Number, required: true, default: 2 },
@@ -55,6 +76,36 @@ const BookingSchema = new mongoose.Schema(
     },
     total: { type: Number, required: true, default: 0 },
     catatan: { type: String, required: false, default: "" },
+
+    // Checkout extra charges (do not mix silently with room price; keep detailed records).
+    checkoutCharges: {
+      type: [
+        new mongoose.Schema(
+          {
+            kategori: { type: String, required: true, trim: true },
+            nominal: { type: Number, required: true, default: 0 },
+            keterangan: { type: String, required: false, default: "" },
+          },
+          { _id: false }
+        ),
+      ],
+      required: false,
+      default: undefined,
+    },
+    checkoutChargesTotal: { type: Number, required: false, default: 0 },
+    checkoutTotal: { type: Number, required: false, default: 0 },
+    // Snapshot of deposit settlement at checkout (for quick view in booking detail)
+    depositSettlement: {
+      type: {
+        type: String,
+        required: false,
+        enum: ["NONE", "CASH", "KTP", "SIM", "PASSPORT", ""],
+        default: "",
+      },
+      deductedAmount: { type: Number, required: false, default: 0 },
+      returnedAmount: { type: Number, required: false, default: 0 },
+      returnStatus: { type: String, required: false, default: "" },
+    },
   },
   { timestamps: true }
 );

@@ -30,11 +30,17 @@ function Login() {
   const logo = resolveMediaUrl(String(byKey.get("logoDataUrl") ?? "").trim());
   const initial = propertyName.trim().slice(0, 1).toUpperCase() || "P";
   const search = Route.useSearch() as any;
-  const redirectTo = typeof search?.redirectTo === "string" && search.redirectTo ? search.redirectTo : "/";
+  let redirectTo = typeof search?.redirectTo === "string" && search.redirectTo ? search.redirectTo : "/";
+  if (redirectTo === "/akun") redirectTo = "/";
 
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(true);
+  // Ambil data dari localStorage jika ada
+  const rememberedIdentifier = typeof window !== "undefined" ? localStorage.getItem("pm_remember_identifier") || "" : "";
+  const rememberedPassword = typeof window !== "undefined" ? localStorage.getItem("pm_remember_password") || "" : "";
+  const remembered = typeof window !== "undefined" ? localStorage.getItem("pm_remember_me") === "true" : true;
+
+  const [identifier, setIdentifier] = useState(rememberedIdentifier);
+  const [password, setPassword] = useState(rememberedPassword);
+  const [remember, setRemember] = useState(remembered);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
 
@@ -48,6 +54,16 @@ function Login() {
         body: JSON.stringify({ identifier, password }),
       });
       setAuthToken(res.token, { persist: remember });
+      // Simpan atau hapus data login sesuai checkbox remember
+      if (remember) {
+        localStorage.setItem("pm_remember_identifier", identifier);
+        localStorage.setItem("pm_remember_password", password);
+        localStorage.setItem("pm_remember_me", "true");
+      } else {
+        localStorage.removeItem("pm_remember_identifier");
+        localStorage.removeItem("pm_remember_password");
+        localStorage.setItem("pm_remember_me", "false");
+      }
       navigate({ to: redirectTo });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal login");
@@ -134,9 +150,9 @@ function Login() {
                 />
                 Ingat saya
               </label>
-              <a href="#" className="text-sm font-medium text-accent">
+              {/* <a href="#" className="text-sm font-medium text-accent">
                 Lupa password?
-              </a>
+              </a> */}
             </div>
             {error && <div className="text-sm text-destructive">{error}</div>}
             <button className="w-full rounded-xl bg-accent py-3.5 text-sm font-semibold text-accent-foreground hover:opacity-90">

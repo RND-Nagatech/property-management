@@ -36,9 +36,15 @@ function AdminLogin() {
     typeof search?.redirectTo === "string" && search.redirectTo ? search.redirectTo : "/admin/";
   const redirectTo = redirectToRaw === "/admin" ? "/admin/" : redirectToRaw;
 
+  // Ambil data dari localStorage jika ada
+  const rememberedUsername = typeof window !== "undefined" ? localStorage.getItem("pm_admin_remember_username") || "" : "";
+  const rememberedPassword = typeof window !== "undefined" ? localStorage.getItem("pm_admin_remember_password") || "" : "";
+  const remembered = typeof window !== "undefined" ? localStorage.getItem("pm_admin_remember_me") === "true" : true;
+
   const [show, setShow] = useState(false);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(rememberedUsername);
+  const [password, setPassword] = useState(rememberedPassword);
+  const [remember, setRemember] = useState(remembered);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
   const usernameRef = useRef<HTMLInputElement | null>(null);
@@ -66,6 +72,16 @@ function AdminLogin() {
         throw new Error("Token login tidak valid");
       }
       setAdminToken(res.token);
+      // Simpan atau hapus data login sesuai checkbox remember
+      if (remember) {
+        localStorage.setItem("pm_admin_remember_username", u);
+        localStorage.setItem("pm_admin_remember_password", p);
+        localStorage.setItem("pm_admin_remember_me", "true");
+      } else {
+        localStorage.removeItem("pm_admin_remember_username");
+        localStorage.removeItem("pm_admin_remember_password");
+        localStorage.setItem("pm_admin_remember_me", "false");
+      }
       window.location.assign("/admin/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal login admin");
@@ -132,7 +148,7 @@ function AdminLogin() {
                 name="username"
                 placeholder="Masukkan Username"
                 ref={usernameRef}
-                defaultValue={username}
+                value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
                 className="mt-1.5 w-full rounded-xl border border-input bg-card px-4 py-3 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
@@ -146,7 +162,7 @@ function AdminLogin() {
                   name="password"
                   placeholder="Masukkan Password"
                   ref={passwordRef}
-                  defaultValue={password}
+                  value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
                   className="w-full rounded-xl border border-input bg-card px-4 py-3 pr-11 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
@@ -159,6 +175,17 @@ function AdminLogin() {
                   {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="h-4 w-4 rounded border-input accent-[oklch(0.72_0.15_162)]"
+                />
+                Ingat saya
+              </label>
             </div>
             {error && <div className="text-sm text-destructive">{error}</div>}
             <button
